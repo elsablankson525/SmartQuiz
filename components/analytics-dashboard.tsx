@@ -5,6 +5,22 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { TrendingUp, TrendingDown, Clock, Target, Award, Calendar } from "lucide-react"
 import type { PerformanceMetrics } from "@/lib/analytics"
+import { ChartContainer } from "@/components/ui/chart";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  ResponsiveContainer,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 interface AnalyticsDashboardProps {
   metrics: PerformanceMetrics
@@ -16,6 +32,9 @@ export function AnalyticsDashboard({ metrics }: AnalyticsDashboardProps) {
     const mins = minutes % 60
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
   }
+
+  // Colors for charts
+  const COLORS = ["#6366f1", "#10b981", "#f59e42", "#ef4444", "#a21caf", "#0ea5e9", "#fbbf24", "#14b8a6"];
 
   return (
     <div className="space-y-6">
@@ -74,6 +93,54 @@ export function AnalyticsDashboard({ metrics }: AnalyticsDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Score Over Time (Line Chart) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Score Over Time</CardTitle>
+          <CardDescription>Your quiz scores week by week</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={metrics.weeklyProgress} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="week" />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <Tooltip formatter={(value: any) => `${value}%`} />
+                <Legend />
+                <Line type="monotone" dataKey="averageScore" stroke="#6366f1" name="Avg Score" dot />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Category Breakdown (Bar Chart) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Category Breakdown</CardTitle>
+          <CardDescription>Average score by subject</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={metrics.categoryBreakdown} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <Tooltip formatter={(value: any) => `${value}%`} />
+                <Legend />
+                <Bar dataKey="averageScore" fill="#10b981" name="Avg Score">
+                  {metrics.categoryBreakdown.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Category Performance */}
       <Card>

@@ -162,41 +162,6 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <GraduationCap className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">SmartQuiz</h1>
-          </Link>
-          <nav className="hidden md:flex gap-6">
-            <Link href="/" className="font-medium hover:text-primary transition-colors">
-              Home
-            </Link>
-            <Link href="/subjects" className="font-medium hover:text-primary transition-colors">
-              Subjects
-            </Link>
-            <Link href="/learning-paths" className="font-medium hover:text-primary transition-colors">
-              Learning Paths
-            </Link>
-            <Link href="/analytics" className="font-medium hover:text-primary transition-colors">
-              Analytics
-            </Link>
-            <Link href="/leaderboard" className="font-medium text-primary">
-              Community
-            </Link>
-          </nav>
-          <div className="flex gap-2">
-            <Link href="/login">
-              <Button variant="outline">Sign In</Button>
-            </Link>
-            <Link href="/signup">
-              <Button>Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center mb-8">
@@ -242,7 +207,7 @@ export default function LeaderboardPage() {
                 const isCurrentUser = session?.user?.email && player.userId && session.user.email === player.userId;
                 return (
                   <div
-                    key={`${player.rank}-${player.name}`}
+                    key={player.id}
                     className={`p-4 rounded-lg border transition-all cursor-pointer hover:shadow-md ${getRankBg(player.rank)} ${isCurrentUser ? "border-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20" : ""}`}
                     onClick={() => handlePlayerClick(player.name)}
                   >

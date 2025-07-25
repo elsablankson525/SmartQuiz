@@ -73,4 +73,18 @@ export async function GET(req: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch learning paths" }, { status: 500 })
   }
+}
+
+// New endpoint to get unique difficulties
+export async function GET_DIFFICULTIES() {
+  try {
+    const difficulties = await prisma.learningPath.findMany({
+      select: { difficulty: true },
+      distinct: ['difficulty'],
+    });
+    const uniqueDifficulties = difficulties.map(d => d.difficulty).filter(Boolean);
+    return NextResponse.json({ difficulties: uniqueDifficulties });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to fetch difficulties" }, { status: 500 });
+  }
 } 

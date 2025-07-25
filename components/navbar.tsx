@@ -49,7 +49,7 @@ export default function Navbar() {
             <Link href="/profile" className="flex items-center">
               <Avatar>
                 <AvatarImage src={session.user.image || "/placeholder-user.jpg"} alt={session.user.name || "User"} />
-                <AvatarFallback>{session.user.name ? session.user.name[0] : "U"}</AvatarFallback>
+                <AvatarFallback>{session.user.name ? session.user.name.split(" ").map((n) => n[0]).join("").toUpperCase() : "U"}</AvatarFallback>
               </Avatar>
             </Link>
           ) : (
@@ -90,7 +90,7 @@ export default function Navbar() {
                 <Link href="/profile" className="flex-1 flex items-center" onClick={() => setMobileMenuOpen(false)}>
                   <Avatar>
                     <AvatarImage src={session.user.image || "/placeholder-user.jpg"} alt={session.user.name || "User"} />
-                    <AvatarFallback>{session.user.name ? session.user.name[0] : "U"}</AvatarFallback>
+                    <AvatarFallback>{session.user.name ? session.user.name.split(" ").map((n) => n[0]).join("").toUpperCase() : "U"}</AvatarFallback>
                   </Avatar>
                   <span className="ml-2">Profile</span>
                 </Link>

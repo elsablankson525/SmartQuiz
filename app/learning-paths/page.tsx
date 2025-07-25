@@ -1,43 +1,39 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { GraduationCap, Search, BookOpen, Clock, Users, Star, Play, Filter, ArrowRight } from "lucide-react"
+import { CheckCircle, Play, Loader2, HelpCircle } from "lucide-react"
 import { useSession } from "next-auth/react"
-import { useEffect } from "react"
-import type { LearningPath } from "@/lib/types"
+import LessonQuiz from "@/components/LessonQuiz"
 
-export default function LearningPathsPage() {
+export default function LearningPathJourneyPage() {
   const { data: session } = useSession();
-  const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedDifficulty, setSelectedDifficulty] = useState("All")
-  const [loadingPath, setLoadingPath] = useState<string | null>(null)
-  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([])
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [paths, setPaths] = useState<any[]>([])
+  const [selectedPath, setSelectedPath] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null)
+  const [showQuiz, setShowQuiz] = useState(false)
+  const [milestoneSubjects, setMilestoneSubjects] = useState<Record<string, any>>({})
 
+  // Fetch all learning paths
   useEffect(() => {
     async function fetchPaths() {
       setLoading(true)
       setError(null)
       try {
         const params = new URLSearchParams()
-        if (selectedCategory !== "All") params.append("category", selectedCategory)
-        if (selectedDifficulty !== "All") params.append("difficulty", selectedDifficulty)
-        if (searchTerm) params.append("search", searchTerm)
         if (session?.user?.email) params.append("userId", session.user.email)
         const res = await fetch(`/api/learning-paths?${params.toString()}`)
         if (!res.ok) throw new Error("Failed to fetch learning paths")
         const data = await res.json()
-        setLearningPaths(data.learningPaths)
+        setPaths(data.learningPaths || [])
       } catch (err) {
         setError("Could not load learning paths. Please try again later.")
       } finally {
@@ -45,268 +41,234 @@ export default function LearningPathsPage() {
       }
     }
     fetchPaths()
-  }, [selectedCategory, selectedDifficulty, searchTerm, session])
+  }, [session])
 
-  if (loading) return <div className="flex justify-center items-center min-h-screen">Loading learning paths...</div>
-  if (error) return <div className="flex justify-center items-center min-h-screen text-red-500">{error}</div>
-
-  const filteredPaths = learningPaths.filter((path) => {
-    const matchesSearch =
-      path.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      path.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      path.skills.some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()))
-
-    const matchesCategory = selectedCategory === "All" || path.category === selectedCategory
-    const matchesDifficulty = selectedDifficulty === "All" || path.difficulty === selectedDifficulty
-
-    return matchesSearch && matchesCategory && matchesDifficulty
-  })
-
-  const handleStartPath = async (pathId: string) => {
-    setLoadingPath(pathId)
-    // Simulate loading
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    router.push(`/quiz/new?path=${pathId}`)
-  }
-
-  const handleContinuePath = async (pathId: string) => {
-    setLoadingPath(pathId)
-    // Simulate loading
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    router.push(`/quiz/play?path=${pathId}`)
-  }
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Beginner":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
-      case "Intermediate":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
-      case "Advanced":
-        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300"
+  // Handle path selection from URL or UI
+  useEffect(() => {
+    if (!paths.length) return;
+    const urlPathId = searchParams.get("path");
+    let pathToSelect = null;
+    if (urlPathId) {
+      pathToSelect = paths.find((p) => p.id === urlPathId);
     }
-  }
+    if (!pathToSelect) {
+      pathToSelect = paths[0];
+    }
+    setSelectedPath(pathToSelect);
+    // Auto-select the first incomplete milestone, or the first if all complete
+    if (pathToSelect && pathToSelect.milestones?.length > 0) {
+      const firstIncomplete = pathToSelect.milestones.find((m: any) => !m.isCompleted)
+      setSelectedMilestone(firstIncomplete ? firstIncomplete.id : pathToSelect.milestones[0].id)
+    }
+  }, [paths, searchParams])
+
+  // Fetch subject details for each milestone (by quizTopics[0])
+  useEffect(() => {
+    async function fetchSubjectsForMilestones() {
+      if (!selectedPath || !selectedPath.milestones) return;
+      const newSubjects: Record<string, any> = {};
+      await Promise.all(selectedPath.milestones.map(async (milestone: any) => {
+        const topic = milestone.quizTopics?.[0];
+        if (!topic) return;
+        try {
+          // Try to fetch subject by topic as name
+          const res = await fetch(`/api/subjects`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const subject = data.subjects?.find((s: any) => s.name.toLowerCase() === topic.toLowerCase() || s.topics?.includes(topic));
+          if (subject) {
+            // Fetch lessons and resources for this subject
+            const [lessonsRes, resourcesRes] = await Promise.all([
+              fetch(`/api/subjects/${subject.id}/lessons`),
+              fetch(`/api/subjects/${subject.id}/resources`),
+            ]);
+            const lessons = lessonsRes.ok ? (await lessonsRes.json()).lessons : [];
+            const resources = resourcesRes.ok ? (await resourcesRes.json()).resources : [];
+            newSubjects[milestone.id] = { ...subject, lessons, resources };
+          }
+        } catch {}
+      }));
+      setMilestoneSubjects(newSubjects);
+    }
+    fetchSubjectsForMilestones();
+  }, [selectedPath]);
+
+  // Path selection handler
+  const handleSelectPath = (id: string) => {
+    router.push(`?path=${id}`);
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>
+  if (!selectedPath) return <div className="min-h-screen flex items-center justify-center">No learning path found.</div>
+
+  const milestones = selectedPath.milestones || []
+  const completedCount = milestones.filter((m: any) => m.isCompleted).length
+  const progress = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0
+  const allComplete = milestones.length > 0 && completedCount === milestones.length
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Removed custom header to avoid duplicate navbar */}
-
       <main className="container mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            <span className="text-primary">SmartQuiz</span> Learning Paths
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-            Structured learning journeys designed by AI to take you from beginner to expert in your chosen field
-          </p>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="mb-8 space-y-4">
-          <div className="relative max-w-md mx-auto">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search learning paths..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-4 justify-center">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Category:</span>
-              <div className="flex gap-1">
-                {["All", "Computer Science", "Business", "Health", "Law", "Psychology"].map((category) => (
-                  <Button
-                    key={category}
-                    variant={selectedCategory === category ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedCategory(category)}
-                  >
-                    {category}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Difficulty:</span>
-              <div className="flex gap-1">
-                {["All", "Beginner", "Intermediate", "Advanced"].map((difficulty) => (
-                  <Button
-                    key={difficulty}
-                    variant={selectedDifficulty === difficulty ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedDifficulty(difficulty)}
-                  >
-                    {difficulty}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Learning Paths Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPaths.map((path) => (
-            <Card key={path.id} className="learning-card hover:shadow-lg transition-all">
+        {/* Path Selection */}
+        <div className="mb-8 flex flex-wrap gap-4 justify-center">
+          {paths.map((p) => (
+            <Card
+              key={p.id}
+              className={`cursor-pointer w-72 ${selectedPath.id === p.id ? "border-primary ring-2 ring-primary" : "hover:border-primary"}`}
+              onClick={() => handleSelectPath(p.id)}
+            >
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div
-                    className={`w-12 h-12 rounded-full ${path.color} flex items-center justify-center text-2xl mb-4`}
-                  >
-                    {path.icon}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {path.isPopular && (
-                      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300">
-                        Popular
-                      </Badge>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{path.rating}</span>
-                    </div>
-                  </div>
-                </div>
-                <CardTitle className="text-xl">{path.title}</CardTitle>
-                <CardDescription>{path.description}</CardDescription>
+                <CardTitle className="text-lg">{p.title}</CardTitle>
+                <CardDescription className="truncate">{p.description}</CardDescription>
               </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Progress Bar (if enrolled) */}
-                {(path.progress ?? 0) > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span>{path.progress}%</span>
-                    </div>
-                    <Progress value={path.progress} className="h-2" />
-                  </div>
-                )}
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <BookOpen className="h-3 w-3" />
-                      <span>{path.modules}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">Modules</div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>{path.duration}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">Duration</div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <Users className="h-3 w-3" />
-                      <span>{(path.enrolled ?? 0).toLocaleString()}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">Enrolled</div>
-                  </div>
+              <CardContent>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline" className="capitalize">{p.category}</Badge>
+                  <Badge variant={
+                    p.difficulty === "beginner"
+                      ? "secondary"
+                      : p.difficulty === "intermediate"
+                        ? "default"
+                        : "destructive"
+                  }>{p.difficulty}</Badge>
                 </div>
-
-                {/* Difficulty and Category */}
-                <div className="flex justify-between items-center">
-                  <Badge className={getDifficultyColor(path.difficulty)}>{path.difficulty}</Badge>
-                  <Badge variant="secondary">{path.category}</Badge>
-                </div>
-
-                {/* Skills */}
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Skills you'll learn:</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {path.skills.slice(0, 3).map((skill: string) => (
-                      <Badge key={skill} variant="outline" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                    {path.skills.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{path.skills.length - 3} more
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Button */}
-                {(path.progress ?? 0) > 0 ? (
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => handleContinuePath(path.id)}
-                    disabled={loadingPath === path.id}
-                  >
-                    {loadingPath === path.id ? (
-                      "Loading..."
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4" />
-                        Continue Learning
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => handleStartPath(path.id)}
-                    disabled={loadingPath === path.id}
-                  >
-                    {loadingPath === path.id ? (
-                      "Starting..."
-                    ) : (
-                      <>
-                        Start Path
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                )}
+                <Progress value={p.progress} className="h-2" />
+                <div className="text-xs mt-1">{p.progress}% complete</div>
               </CardContent>
             </Card>
           ))}
         </div>
-
-        {/* No Results */}
-        {filteredPaths.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🎯</div>
-            <h3 className="text-xl font-semibold mb-2">No learning paths found</h3>
-            <p className="text-muted-foreground mb-4">Try adjusting your search terms or filters</p>
-            <Button
-              onClick={() => {
-                setSearchTerm("")
-                setSelectedCategory("All")
-                setSelectedDifficulty("All")
-              }}
-            >
-              Clear Filters
-            </Button>
-          </div>
-        )}
-
-        {/* CTA Section */}
-        <section className="mt-16 text-center bg-muted/30 rounded-2xl p-8">
-          <h2 className="text-2xl font-bold mb-4">Create Your Own Learning Path</h2>
-          <p className="text-muted-foreground mb-6">
-            SmartQuiz AI can create personalized learning paths based on your goals and current knowledge level.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button onClick={() => router.push("/quiz/new")}>Start Assessment</Button>
-            <Button variant="outline" onClick={() => router.push("/subjects")}>
-              Browse Subjects
-            </Button>
-          </div>
-        </section>
+        {/* Path Journey */}
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            {/* Completion Banner */}
+            {allComplete && (
+              <div className="mb-4 p-4 rounded-lg bg-green-100 text-green-800 text-center font-bold border border-green-300">
+                🎉 Congratulations! You have completed this learning path.
+              </div>
+            )}
+            <div className="flex items-center gap-4 mb-2">
+              <div className={`w-14 h-14 rounded-full ${selectedPath.color || 'bg-primary/10'} flex items-center justify-center text-3xl`}>
+                {selectedPath.icon || <HelpCircle className="h-8 w-8" />}
+              </div>
+              <div>
+                <CardTitle className="text-2xl">{selectedPath.title}</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="capitalize">{selectedPath.category}</Badge>
+                  <Badge variant={
+                    selectedPath.difficulty === "beginner"
+                      ? "secondary"
+                      : selectedPath.difficulty === "intermediate"
+                        ? "default"
+                        : "destructive"
+                  }>{selectedPath.difficulty}</Badge>
+                </div>
+              </div>
+            </div>
+            <CardDescription className="text-base mb-2">{selectedPath.description}</CardDescription>
+            <div className="flex gap-4 text-sm mb-2">
+              <div className="flex items-center gap-1">
+                <Play className="h-4 w-4" />
+                {selectedPath.estimatedDuration || "-"}
+              </div>
+              <div className="flex items-center gap-1">
+                <CheckCircle className="h-4 w-4" />
+                {milestones.length} milestones
+              </div>
+            </div>
+            <Progress value={progress} className="h-2" />
+            <div className="text-sm mt-1">{completedCount}/{milestones.length} milestones completed</div>
+          </CardHeader>
+          <CardContent>
+            {/* Milestones List */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-2">Milestones</h3>
+              <ul className="space-y-2">
+                 {(() => {
+                   const shownSubjectIds = new Set();
+                   return milestones.map((milestone: any) => {
+                     const subject = milestoneSubjects[milestone.id];
+                     let showSubjectBlock = false;
+                     if (subject && subject.id && !shownSubjectIds.has(subject.id)) {
+                       showSubjectBlock = true;
+                       shownSubjectIds.add(subject.id);
+                     }
+                     return (
+                       <li key={milestone.id}>
+                         <button
+                           className={`w-full flex items-center gap-3 p-3 rounded-lg border ${selectedMilestone === milestone.id ? "border-primary bg-primary/10" : "border-muted"} hover:border-primary transition`}
+                           onClick={() => {
+                             setSelectedMilestone(milestone.id)
+                             setShowQuiz(false)
+                           }}
+                         >
+                           <CheckCircle className={`h-4 w-4 ${milestone.isCompleted ? "text-green-500" : "text-muted-foreground"}`} />
+                           <span className="flex-1 text-left font-medium">{milestone.title}</span>
+                           <span className="text-xs text-muted-foreground">Required Score: {milestone.requiredScore}%</span>
+                           {milestone.isCompleted && <span className="ml-2 text-green-600">✔</span>}
+                         </button>
+                         {/* Milestone details and quiz */}
+                         {selectedMilestone === milestone.id && (
+                           <div className="mt-2 ml-8 text-sm text-muted-foreground">
+                             <div className="mb-2">{milestone.description}</div>
+                             <div className="mb-2">Quiz Topics: {milestone.quizTopics.join(", ")}</div>
+                             {/* Rich subject content, only if not already shown */}
+                             {showSubjectBlock && subject && (
+                               <div className="mb-2 p-3 rounded bg-muted/50">
+                                 <div className="font-semibold text-primary mb-1">Subject: {subject.name}</div>
+                                 <div className="mb-1">{subject.description}</div>
+                                 {subject.lessons?.length > 0 && (
+                                   <div className="mb-1">
+                                     <span className="font-medium">Lessons:</span>
+                                     <ul className="list-disc ml-6">
+                                       {subject.lessons.map((lesson: any) => (
+                                         <li key={lesson.id}>{lesson.title}</li>
+                                       ))}
+                                     </ul>
+                                   </div>
+                                 )}
+                                 {subject.resources?.length > 0 && (
+                                   <div>
+                                     <span className="font-medium">Resources:</span>
+                                     <ul className="list-disc ml-6">
+                                       {subject.resources.map((res: any) => (
+                                         <li key={res.id}><a href={res.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{res.title}</a></li>
+                                       ))}
+                                     </ul>
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                             {!subject && (
+                              <div className="mb-2 p-3 rounded bg-muted/50 text-muted-foreground">
+                                <div>No subject details available for this milestone.</div>
+                              </div>
+                            )}
+                             {!milestone.isCompleted && !showQuiz && (
+                               <Button className="mt-2" onClick={() => setShowQuiz(true)}>
+                                 <Play className="h-4 w-4 mr-2" /> Start Quiz
+                               </Button>
+                             )}
+                             {showQuiz && (
+                               <div className="mt-4">
+                                 {/* Use the first quiz topic for the quiz, or all topics if supported */}
+                                 <LessonQuiz quizId={milestone.quizTopics[0]} />
+                               </div>
+                             )}
+                             {milestone.isCompleted && (
+                               <div className="mt-2 text-green-700 font-semibold">Milestone completed!</div>
+                             )}
+                           </div>
+                         )}
+                       </li>
+                     )
+                   });
+                 })()}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )
