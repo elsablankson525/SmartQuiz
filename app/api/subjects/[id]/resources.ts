@@ -3,12 +3,13 @@ import { prisma } from "@/lib/prisma"
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: subjectId } = await params
     // @ts-ignore
     const resources = await prisma.resource.findMany({
-      where: { subjectId: params.id },
+      where: { subjectId },
     })
     return NextResponse.json({ resources })
   } catch (error) {

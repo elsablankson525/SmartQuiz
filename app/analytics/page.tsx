@@ -34,11 +34,20 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     async function fetchAnalytics() {
-      if (!session || !session.user || !session.user.email) return
+      if (!session || !session.user) return
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/analytics?userId=${encodeURIComponent(session.user.email)}&timeRange=${selectedTimeRange}`)
+        let userIdParam = ""
+        if ("id" in session.user && session.user.id) {
+          userIdParam = session.user.id
+        } else if (session.user.email) {
+          userIdParam = session.user.email
+        } else {
+          throw new Error("No user identifier found")
+        }
+        
+        const res = await fetch(`/api/analytics?userId=${encodeURIComponent(userIdParam)}&timeRange=${selectedTimeRange}`)
         if (!res.ok) throw new Error("Failed to fetch analytics")
         const data = await res.json()
         setAnalyticsData(data.analytics)
@@ -54,20 +63,6 @@ export default function AnalyticsPage() {
   if (loading) return <div className="flex justify-center items-center min-h-screen">Loading analytics...</div>
   if (error) return <div className="flex justify-center items-center min-h-screen text-red-500">{error}</div>
   if (!analyticsData) return null
-
-  // Map analyticsData to PerformanceMetrics for AnalyticsDashboard
-  const metrics = {
-    totalQuizzes: analyticsData.totalQuizzes,
-    averageScore: analyticsData.averageScore,
-    totalTimeSpent: parseFloat(analyticsData.timeSpent) * 60, // convert hours to minutes
-    strongestCategory: analyticsData.strongSubjects?.[0] || "",
-    weakestCategory: analyticsData.weakSubjects?.[0] || "",
-    improvementRate: analyticsData.improvement,
-    streakDays: analyticsData.streak,
-    categoryBreakdown: analyticsData.categoryBreakdown || [],
-    weeklyProgress: analyticsData.weeklyProgress || [],
-    difficultyProgression: analyticsData.difficultyProgression || [],
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,7 +92,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
         {/* Analytics Dashboard */}
-        <AnalyticsDashboard metrics={metrics} />
+        <AnalyticsDashboard data={analyticsData} timeRange={selectedTimeRange} />
       </main>
     </div>
   )

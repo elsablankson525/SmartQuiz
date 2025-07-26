@@ -7,18 +7,19 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const userId = searchParams.get("userId")
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 })
+    
+    if (!userId || !userId.trim()) {
+      return NextResponse.json({ error: "Missing or invalid userId" }, { status: 400 })
     }
 
     // Find user by email
-    const user = await prisma.user.findUnique({ where: { email: userId } })
+    const user = await prisma.user.findUnique({ where: { email: userId.trim() } })
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     // Fetch all quiz results for user
-    const quizResultsRaw = await prisma.quizResult.findMany({ where: { userId: userId } })
+    const quizResultsRaw = await prisma.quizResult.findMany({ where: { userId: user.id } })
     const quizResults = quizResultsRaw.map(q => ({
       ...q,
       questionsAnswered: Array.isArray(q.questionsAnswered)
@@ -86,8 +87,12 @@ export async function GET(req: Request) {
       categoryPerformance,
       quizHistory,
     }
-    return NextResponse.json({ profile })
+    return NextResponse.json({ 
+      success: true,
+      profile 
+    })
   } catch (error) {
+    console.error("Profile error:", error)
     return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 })
   }
 } 

@@ -7,10 +7,31 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { GraduationCap, Clock, ArrowRight, CheckCircle, XCircle, Brain, Trophy, Target } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  GraduationCap, 
+  Clock, 
+  ArrowRight, 
+  CheckCircle, 
+  XCircle, 
+  Brain, 
+  Trophy, 
+  Target,
+  BookOpen,
+  Calendar,
+  Users,
+  Star,
+  ExternalLink,
+  BookMarked,
+  Lightbulb,
+  TrendingUp,
+  AlertCircle,
+  Zap,
+  BarChart3
+} from "lucide-react"
 // Remove import { generateQuestions } from "@/lib/quiz-generator"
-import { generatePersonalizedRecommendations } from "@/lib/recommendation-engine"
-import { RecommendationPanel } from "@/components/recommendation-panel"
+
+import { SmartRecommendationPanel } from "@/components/smart-recommendation-panel"
 import { useSession } from "next-auth/react"
 
 import type { EnhancedQuestion } from "@/lib/quiz-generator"
@@ -40,6 +61,13 @@ export default function PlayQuizPage() {
   const [recommendations, setRecommendations] = useState<any>(null)
   const [showRecommendations, setShowRecommendations] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [userAnswers, setUserAnswers] = useState<Array<{question: string, userAnswer: string | null, correctAnswer: string, isCorrect: boolean}>>([])
+  const [userQuizHistory, setUserQuizHistory] = useState<any[]>([])
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
+  const [subjectResources, setSubjectResources] = useState<any[]>([])
+  const [studyPlans, setStudyPlans] = useState<any[]>([])
+  const [loadingResources, setLoadingResources] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
   // Generate questions on component mount
   useEffect(() => {
@@ -104,6 +132,14 @@ export default function PlayQuizPage() {
       setScore((prev) => prev + 1)
     }
 
+    // Track user answer
+    setUserAnswers(prev => [...prev, {
+      question: currentQuestion.question,
+      userAnswer: finalAnswer,
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: isCorrect
+    }])
+
     setIsAnswerSubmitted(true)
     setShowExplanation(true)
 
@@ -135,6 +171,11 @@ export default function PlayQuizPage() {
       law: "Law",
       psychology: "Psychology",
       mathematics: "Mathematics",
+      engineering: "Engineering",
+      "arts-humanities": "Arts & Humanities",
+      "natural-sciences": "Natural Sciences",
+      "social-sciences": "Social Sciences",
+      technology: "Technology",
     }
     return categoryMap[cat] || cat
   }
@@ -147,10 +188,58 @@ export default function PlayQuizPage() {
       law: "⚖️",
       psychology: "🧠",
       mathematics: "📊",
+      engineering: "🛠️",
+      "arts-humanities": "🎨",
+      "natural-sciences": "🔬",
+      "social-sciences": "🌍",
+      technology: "🤖",
     }
     return iconMap[cat] || "📚"
   }
 
+  // Fetch user quiz history when session is available
+  useEffect(() => {
+    if (session?.user?.email) {
+      const fetchUserHistory = async () => {
+        try {
+          const res = await fetch(`/api/user-quiz-history?userId=${encodeURIComponent(session.user!.email!)}`)
+          if (res.ok) {
+            const data = await res.json()
+            setUserQuizHistory(data.quizHistory || [])
+          }
+        } catch (error) {
+          // Silently handle error - not critical for quiz functionality
+        }
+      }
+      fetchUserHistory()
+    }
+  }, [session])
+
+  // Load subject resources and study plans
+  const loadSubjectResourcesAndStudyPlans = async () => {
+    setLoadingResources(true)
+    try {
+      // Fetch resources for the subject
+      const resourcesRes = await fetch(`/api/subjects/${category}/resources`)
+      if (resourcesRes.ok) {
+        const resourcesData = await resourcesRes.json()
+        setSubjectResources(resourcesData.resources || [])
+      }
+
+      // Fetch study plans for the category and difficulty
+      const studyPlansRes = await fetch(`/api/study-plans?category=${category}&difficulty=${difficulty}`)
+      if (studyPlansRes.ok) {
+        const studyPlansData = await studyPlansRes.json()
+        setStudyPlans(studyPlansData.studyPlans || [])
+      }
+    } catch (error) {
+      console.error("Failed to load resources and study plans:", error)
+    } finally {
+      setLoadingResources(false)
+    }
+  }
+
+  // Save quiz result and generate recommendations when quiz is completed
   useEffect(() => {
     if (
       quizCompleted &&
@@ -160,31 +249,82 @@ export default function PlayQuizPage() {
       session.user.email
     ) {
       const userEmail = session.user.email;
-      const saveResult = async () => {
-        await fetch("/api/quiz-result", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: userEmail, // Use email as userId
-            category,
-            difficulty,
-            score,
-            totalQuestions: questions.length,
-            timeSpent: 0,
-            date: new Date().toISOString(),
-            questionsAnswered: questions.map((q, i) => ({
-              question: q.question,
-              userAnswer: null, // You can update this if you track user answers
-              correctAnswer: q.correctAnswer,
-              isCorrect: null, // You can update this if you track correctness
-              topic: q.topic,
-            })),
-          }),
-        })
+      
+      const saveResultAndGenerateRecommendations = async () => {
+        try {
+          // Save quiz result
+          const saveRes = await fetch("/api/quiz-result", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: userEmail,
+              category,
+              difficulty,
+              score,
+              totalQuestions: questions.length,
+              timeSpent: 0,
+              date: new Date().toISOString(),
+              questionsAnswered: userAnswers,
+            }),
+          })
+
+          if (saveRes.ok) {
+            // Load resources and study plans
+            await loadSubjectResourcesAndStudyPlans()
+
+            // Generate recommendations with real data
+            setLoadingRecommendations(true)
+            
+            // Create current quiz result object with proper type handling
+            const currentQuizResult = {
+              id: "current-quiz",
+              userId: userEmail,
+              category,
+              difficulty,
+              score,
+              totalQuestions: questions.length,
+              timeSpent: 0,
+              date: new Date(),
+              questionsAnswered: userAnswers.map(answer => ({
+                question: answer.question,
+                userAnswer: answer.userAnswer || "", // Convert null to empty string
+                correctAnswer: answer.correctAnswer,
+                isCorrect: answer.isCorrect,
+              })),
+            }
+
+            // Generate smart recommendations using the new API
+            const recsResponse = await fetch("/api/smart-recommendations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: userEmail,
+                quizResult: currentQuizResult,
+                questions,
+                learnerType: 'inBetween',
+                includeAnalytics: true,
+                includeStudyPlan: true,
+                includeLearningPaths: true
+              }),
+            })
+
+            if (recsResponse.ok) {
+              const data = await recsResponse.json()
+              
+              setRecommendations(data)
+              setShowRecommendations(true)
+              setLoadingRecommendations(false)
+            }
+          }
+        } catch (error) {
+          console.error("Error saving result or generating recommendations:", error)
+          setLoadingRecommendations(false)
+        }
       }
-      saveResult()
+      
+      saveResultAndGenerateRecommendations()
     }
-  }, [quizCompleted, session, category, difficulty, score, questions])
+  }, [quizCompleted, session, category, difficulty, score, userAnswers, userQuizHistory])
 
   if (loading) {
     return (
@@ -277,8 +417,9 @@ export default function PlayQuizPage() {
 
         <main className="flex-1 py-12 bg-muted/30">
           <div className="container mx-auto px-4">
-            <div className="max-w-2xl mx-auto">
-              <Card className="overflow-hidden">
+            <div className="max-w-4xl mx-auto">
+              {/* Quiz Results Card */}
+              <Card className="overflow-hidden mb-8">
                 <div className="bg-primary h-2" style={{ width: `${percentage}%` }}></div>
                 <CardHeader className="text-center">
                   <div className="text-4xl mb-4">{getCategoryIcon(category)}</div>
@@ -347,40 +488,260 @@ export default function PlayQuizPage() {
                       Back to Home
                     </Button>
                   </div>
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => {
-                      const mockQuizResult = {
-                        id: "quiz-" + Date.now(),
-                        userId: "user-1",
-                        category,
-                        difficulty,
-                        score,
-                        totalQuestions: questions.length,
-                        timeSpent: 0,
-                        date: new Date(),
-                      }
-                      const recs = generatePersonalizedRecommendations(mockQuizResult, questions)
-                      setRecommendations(recs)
-                      setShowRecommendations(true)
-                    }}
-                  >
-                    View Personalized Recommendations
-                  </Button>
+                  {loadingRecommendations && (
+                    <div className="w-full text-center py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        <span className="text-sm text-muted-foreground">Generating personalized recommendations...</span>
+                      </div>
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
+
+              {/* Comprehensive Learning Resources and Study Plans */}
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-6 w-6 text-blue-600" />
+                    Learning Resources & Study Plans
+                  </CardTitle>
+                  <p className="text-muted-foreground">
+                    Comprehensive resources and structured study plans for {getCategoryDisplayName(category)}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="resources">Resources</TabsTrigger>
+                      <TabsTrigger value="study-plan">Study Plan</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="overview" className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                              <BookOpen className="h-4 w-4 text-blue-500" />
+                              Available Resources
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-2xl font-bold">{subjectResources.length}</p>
+                            <p className="text-sm text-muted-foreground">High-quality learning materials</p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                              <BookMarked className="h-4 w-4 text-green-500" />
+                              Study Plans
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-2xl font-bold">{studyPlans.length}</p>
+                            <p className="text-sm text-muted-foreground">Structured learning paths</p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                              <Target className="h-4 w-4 text-purple-500" />
+                              Your Level
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <Badge variant="outline" className="capitalize text-lg">
+                              {difficulty}
+                            </Badge>
+                            <p className="text-sm text-muted-foreground mt-2">Current difficulty level</p>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Lightbulb className="h-5 w-5 text-yellow-600" />
+                            Quick Start Guide
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <h4 className="font-medium">For Beginners</h4>
+                              <ul className="text-sm text-muted-foreground space-y-1">
+                                <li>• Start with fundamental concepts</li>
+                                <li>• Focus on basic terminology</li>
+                                <li>• Complete practice exercises</li>
+                              </ul>
+                            </div>
+                            <div className="space-y-2">
+                              <h4 className="font-medium">For Advanced Learners</h4>
+                              <ul className="text-sm text-muted-foreground space-y-1">
+                                <li>• Dive into complex topics</li>
+                                <li>• Explore advanced resources</li>
+                                <li>• Challenge with difficult problems</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="resources" className="space-y-6">
+                      {loadingResources ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                          <p className="text-muted-foreground">Loading resources...</p>
+                        </div>
+                      ) : subjectResources.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {subjectResources.map((resource, index) => (
+                            <Card key={index} className="hover:shadow-md transition-shadow">
+                              <CardHeader className="pb-3">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <CardTitle className="text-base">{resource.title}</CardTitle>
+                                    <p className="text-sm text-muted-foreground mt-1">{resource.description}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-4">
+                                    <Badge variant="outline" className="capitalize">
+                                      {resource.type}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="pt-0">
+                                <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+                                  <span>{resource.provider || 'SmartQuiz'}</span>
+                                  {resource.rating > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                      <span>{resource.rating.toFixed(1)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={() => window.open(resource.url, '_blank')}
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  View Resource
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">No resources available for this subject</p>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="study-plan" className="space-y-6">
+                      {loadingResources ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                          <p className="text-muted-foreground">Loading study plans...</p>
+                        </div>
+                      ) : studyPlans.length > 0 ? (
+                        <div className="space-y-4">
+                          {studyPlans.map((plan, index) => (
+                            <Card key={index}>
+                              <CardHeader>
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-lg">Week {plan.week}</CardTitle>
+                                  <Badge variant="outline">{plan.focus}</Badge>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium mb-2">Focus Area</h4>
+                                  <p className="text-sm text-muted-foreground">{plan.focus}</p>
+                                </div>
+
+                                {plan.goals && plan.goals.length > 0 && (
+                                  <div>
+                                    <h4 className="font-medium mb-2">Learning Goals</h4>
+                                    <ul className="text-sm text-muted-foreground space-y-1">
+                                      {plan.goals.map((goal: string, goalIndex: number) => (
+                                        <li key={goalIndex} className="flex items-center gap-2">
+                                          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                                          {goal}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {plan.quizTopics && plan.quizTopics.length > 0 && (
+                                  <div>
+                                    <h4 className="font-medium mb-2">Quiz Topics</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {plan.quizTopics.map((topic: string, topicIndex: number) => (
+                                        <Badge key={topicIndex} variant="secondary">
+                                          {topic}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {plan.resources && plan.resources.length > 0 && (
+                                  <div>
+                                    <h4 className="font-medium mb-2">Recommended Resources</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {plan.resources.map((resource: string, resourceIndex: number) => (
+                                        <Badge key={resourceIndex} variant="outline">
+                                          {resource}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <BookMarked className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">No study plans available for this subject</p>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+
+              {/* Smart Recommendations */}
+              {showRecommendations && recommendations && (
+                <div className="mb-8">
+                  <div className="mb-6 text-center">
+                    <h2 className="text-2xl font-bold mb-2">Your Personalized Recommendations</h2>
+                    <p className="text-muted-foreground">
+                      Based on your quiz performance and learning history, here are AI-powered recommendations to help you improve:
+                    </p>
+                  </div>
+                  <SmartRecommendationPanel 
+                    recommendations={recommendations} 
+                    onStartQuiz={(category, difficulty) => {
+                      router.push(`/quiz/play?category=${category}&difficulty=${difficulty}&count=10&time=60`)
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </main>
-
-        {showRecommendations && recommendations && (
-          <div className="container mx-auto px-4 pb-12">
-            <div className="max-w-2xl mx-auto">
-              <RecommendationPanel recommendations={recommendations} />
-            </div>
-          </div>
-        )}
       </div>
     )
   }

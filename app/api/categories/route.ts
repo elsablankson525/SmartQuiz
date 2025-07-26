@@ -6,15 +6,25 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get("search")
     const where: any = {}
-    if (search) {
+    
+    if (search && search.trim()) {
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
+        { name: { contains: search.trim(), mode: "insensitive" } },
+        { description: { contains: search.trim(), mode: "insensitive" } },
       ]
     }
-    const categories = await prisma.category.findMany({ where })
-    return NextResponse.json({ categories })
+    
+    const categories = await prisma.category.findMany({ 
+      where,
+      orderBy: { name: 'asc' }
+    })
+    
+    return NextResponse.json({ 
+      success: true,
+      categories: categories || []
+    })
   } catch (error) {
+    console.error("Categories error:", error)
     return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 })
   }
 } 

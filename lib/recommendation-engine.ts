@@ -39,8 +39,12 @@ export interface PersonalizedRecommendation {
 
 // Replace LearningResource interface with the one from lib/learning-resources.ts
 export async function getLearningResources(category: string): Promise<LearningResource[]> {
-  // Fetch from DB
-  const dbResources = await prisma.learningResource.findMany({ where: { category } })
+  // Fetch from DB - handle category name mapping
+  let dbCategory = category;
+  if (category === 'computer-science') {
+    dbCategory = 'Computer Science';
+  }
+  const dbResources = await prisma.learningResource.findMany({ where: { category: dbCategory } })
   // Map DB results to LearningResource interface
   return dbResources.map((r: any) => ({
     id: r.id,

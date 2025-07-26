@@ -7,6 +7,7 @@ import { CustomSessionProvider } from "@/components/session-provider";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import Navbar from "@/components/navbar";
+import ErrorBoundary from "@/components/error-boundary";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,14 +23,15 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const session = await getServerSession(authOptions);
-  console.log("LAYOUT SERVER SESSION:", session);
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <CustomSessionProvider session={session}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <Navbar />
-            {children}
+            <ErrorBoundary>
+              <Navbar />
+              {children}
+            </ErrorBoundary>
           </ThemeProvider>
         </CustomSessionProvider>
       </body>

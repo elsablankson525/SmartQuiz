@@ -6,7 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, Video, FileText, Code, TrendingUp, TrendingDown, Minus, ExternalLink } from "lucide-react"
-import type { PersonalizedRecommendation, LearningResource } from "@/lib/recommendation-engine"
+import type { LearningResource } from "@/lib/unified-recommendation-engine"
+
+interface PersonalizedRecommendation {
+  weakAreas: string[]
+  strongAreas: string[]
+  recommendedResources: LearningResource[]
+  nextQuizSuggestion: {
+    category: string
+    difficulty: string
+    reason: string
+  }
+  pathRecommendations?: { path: any; reason: string; matchScore: number }[]
+  studyPlan?: any[]
+}
 
 interface RecommendationPanelProps {
   recommendations: PersonalizedRecommendation

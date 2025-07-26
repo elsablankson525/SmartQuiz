@@ -8,6 +8,11 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "0", 10)
     const offset = parseInt(searchParams.get("offset") || "0", 10)
 
+    // Validate parameters
+    if (limit < 0 || offset < 0) {
+      return NextResponse.json({ error: "Invalid limit or offset parameters" }, { status: 400 })
+    }
+
     // Build query
     const where = timeframe ? { timeframe } : undefined
     const entries = await prisma.leaderboardEntry.findMany({
@@ -18,8 +23,14 @@ export async function GET(req: Request) {
     // Pagination
     const paginated = limit > 0 ? entries.slice(offset, offset + limit) : entries
 
-    return NextResponse.json({ leaderboard: paginated })
+    return NextResponse.json({ 
+      success: true,
+      leaderboard: paginated,
+      total: entries.length,
+      hasMore: limit > 0 ? offset + limit < entries.length : false
+    })
   } catch (error) {
+    console.error("Leaderboard error:", error)
     return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
   }
 } 

@@ -36,7 +36,11 @@ export async function GET(req: Request) {
     // If userId is provided, fetch user quiz results for progress tracking
     let userQuizResults: any[] = []
     if (userId) {
-      userQuizResults = await prisma.quizResult.findMany({ where: { userId } })
+      // Find user by email first
+      const user = await prisma.user.findUnique({ where: { email: userId } })
+      if (user) {
+        userQuizResults = await prisma.quizResult.findMany({ where: { userId: user.id } })
+      }
     }
 
     // Format response with milestones and progress

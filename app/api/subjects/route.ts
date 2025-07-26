@@ -6,17 +6,27 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get("search")
     const where: any = {}
-    if (search) {
+    
+    if (search && search.trim()) {
       where.OR = [
-        { id: search },
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { topics: { hasSome: [search] } },
+        { id: search.trim() },
+        { name: { contains: search.trim(), mode: "insensitive" } },
+        { description: { contains: search.trim(), mode: "insensitive" } },
+        { topics: { hasSome: [search.trim()] } },
       ]
     }
-    const subjects = await prisma.subject.findMany({ where })
-    return NextResponse.json({ subjects })
+    
+    const subjects = await prisma.subject.findMany({ 
+      where,
+      orderBy: { name: 'asc' }
+    })
+    
+    return NextResponse.json({ 
+      success: true,
+      subjects: subjects || []
+    })
   } catch (error) {
+    console.error("Subjects error:", error)
     return NextResponse.json({ error: "Failed to fetch subjects" }, { status: 500 })
   }
 } 

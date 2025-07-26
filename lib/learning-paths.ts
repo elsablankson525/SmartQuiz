@@ -59,7 +59,12 @@ export async function recommendLearningPaths(
   learningPaths.forEach((path: any) => {
     let matchScore = 0
     let reason = ""
-    const categoryPerf = categoryPerformance.get(path.category)
+    // Handle category name mapping
+    let pathCategory = path.category;
+    if (pathCategory === 'Computer Science') {
+      pathCategory = 'computer-science';
+    }
+    const categoryPerf = categoryPerformance.get(pathCategory)
     if (categoryPerf) {
       matchScore += 30
       if (categoryPerf.averageScore < 70) {
@@ -68,14 +73,14 @@ export async function recommendLearningPaths(
       } else {
         reason = `Build on your ${path.category} knowledge with advanced concepts`
       }
-    } else if (userPreferences?.categories.includes(path.category)) {
+    } else if (userPreferences?.categories.includes(pathCategory)) {
       matchScore += 25
-      reason = `Matches your interest in ${path.category}`
+      reason = `Matches your interest in ${pathCategory}`
     }
     if (userPreferences?.difficulty === path.difficulty) {
       matchScore += 15
     }
-    if (path.prerequisites.length === 0 && userHistory.length < 5) {
+    if ((!path.skills || path.skills.length === 0) && userHistory.length < 5) {
       matchScore += 10
       reason += " - Perfect for beginners"
     }

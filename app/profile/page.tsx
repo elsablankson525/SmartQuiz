@@ -112,7 +112,6 @@ export type ProfileData = {
 
 export default function ProfilePage() {
   const { data: session } = useSession();
-  console.log("SESSION:", session); // Debug: log session
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'achievements'>("overview")
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,9 +125,7 @@ export default function ProfilePage() {
       setError(null)
       try {
         const res = await fetch(`/api/profile?userId=${encodeURIComponent(session.user.email)}`)
-        console.log("/api/profile response status:", res.status); // Debug: log status
         const data = await res.json()
-        console.log("/api/profile response data:", data); // Debug: log data
         if (!res.ok) throw new Error("Failed to fetch profile")
         setProfile(data.profile)
       } catch (err) {
