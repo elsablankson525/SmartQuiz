@@ -48,7 +48,7 @@ interface AnalyticsDashboardProps {
   timeRange: string
 }
 
-export function AnalyticsDashboard({ data, timeRange }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-green-600"
     if (score >= 80) return "text-blue-600"
@@ -350,7 +350,7 @@ export function AnalyticsDashboard({ data, timeRange }: AnalyticsDashboardProps)
             <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">🎯 Maintain Your Streak</h4>
               <p className="text-sm text-green-800 dark:text-green-200">
-                You're on a {data.streak}-day streak! Take a quick 5-minute quiz daily to maintain momentum.
+                You&apos;re on a {data.streak}-day streak! Take a quick 5-minute quiz daily to maintain momentum.
               </p>
             </div>
 

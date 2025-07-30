@@ -1,879 +1,763 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+
+import { Separator } from "@/components/ui/separator";
 import { 
-  GraduationCap, 
-  Clock, 
-  ArrowRight, 
   CheckCircle, 
   XCircle, 
-  Brain, 
-  Trophy, 
-  Target,
-  BookOpen,
-  Calendar,
-  Users,
-  Star,
-  ExternalLink,
-  BookMarked,
-  Lightbulb,
-  TrendingUp,
-  AlertCircle,
-  Zap,
-  BarChart3
-} from "lucide-react"
-// Remove import { generateQuestions } from "@/lib/quiz-generator"
+  ArrowRight, 
+  ArrowLeft,
+  Timer,
+  Brain,
+  Trophy,
+  Loader2,
+  BarChart3,
+  BookOpen
+} from "lucide-react";
 
-import { SmartRecommendationPanel } from "@/components/smart-recommendation-panel"
-import { useSession } from "next-auth/react"
+import { AdvancedAIRecommendationPanel } from "@/components/advanced-ai-recommendation-panel";
+import { cn } from "@/lib/utils";
 
-import type { EnhancedQuestion } from "@/lib/quiz-generator"
+interface Question {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation?: string;
+}
 
-// This page relies on client-side search params – don't prerender
-export const dynamic = "force-dynamic"
+interface QuizState {
+  currentQuestionIndex: number;
+  answers: Record<string, string>;
+  timeRemaining: number; // Total time remaining for the entire quiz
+  questionTimeRemaining: number; // Time remaining for current question
+  questionStartTime: number; // When the current question started
+  isComplete: boolean;
+  score: number;
+  percentageScore: number;
+  totalQuestions: number;
+  showFeedback: boolean;
+  submittedAnswers: Record<string, boolean>;
+  questionTimes: Record<string, number>; // Track time spent on each question
+}
 
-export default function PlayQuizPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { data: session } = useSession();
+export default function QuizPlayPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [quizState, setQuizState] = useState<QuizState>({
+    currentQuestionIndex: 0,
+    answers: {},
+    timeRemaining: 60,
+    questionTimeRemaining: 60,
+    questionStartTime: 0,
+    isComplete: false,
+    score: 0,
+    percentageScore: 0,
+    totalQuestions: 0,
+    showFeedback: false,
+    submittedAnswers: {},
+    questionTimes: {},
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showResults, setShowResults] = useState(false);
 
-  const category = searchParams.get("category") || "computer-science"
-  const difficulty = searchParams.get("difficulty") || "intermediate"
-  const count = Number.parseInt(searchParams.get("count") || "10", 10)
-  const timeLimit = Number.parseInt(searchParams.get("time") || "60", 10)
+  // Get quiz parameters from URL
+  const category = searchParams.get("category") || "general";
+  const difficulty = searchParams.get("difficulty") || "medium";
+  const questionCount = parseInt(searchParams.get("count") || "10");
+  const timeLimit = parseInt(searchParams.get("time") || "60");
 
-  const [questions, setQuestions] = useState<EnhancedQuestion[]>([])
-  const [showExplanation, setShowExplanation] = useState(false)
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
-  const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false)
-  const [score, setScore] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState(timeLimit)
-  const [quizCompleted, setQuizCompleted] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [recommendations, setRecommendations] = useState<any>(null)
-  const [showRecommendations, setShowRecommendations] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [userAnswers, setUserAnswers] = useState<Array<{question: string, userAnswer: string | null, correctAnswer: string, isCorrect: boolean}>>([])
-  const [userQuizHistory, setUserQuizHistory] = useState<any[]>([])
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false)
-  const [subjectResources, setSubjectResources] = useState<any[]>([])
-  const [studyPlans, setStudyPlans] = useState<any[]>([])
-  const [loadingResources, setLoadingResources] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
-
-  // Generate questions on component mount
+  // Redirect if not authenticated
   useEffect(() => {
-    const loadQuestions = async () => {
-      setLoading(true)
-      setError(null)
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  // Load questions
+  useEffect(() => {
+    async function loadQuestions() {
+      if (status !== "authenticated") return;
+      
+      setLoading(true);
+      setError(null);
+      
       try {
-        const params = new URLSearchParams()
-        params.append("category", category)
-        params.append("difficulty", difficulty)
-        params.append("count", String(count))
-        params.append("random", "true")
-        const res = await fetch(`/api/quiz-questions?${params.toString()}`)
-        if (!res.ok) throw new Error("Failed to fetch quiz questions")
-        const data = await res.json()
-        setQuestions(data.questions)
-      } catch (error) {
-        setError("Could not load quiz questions. Please try again later.")
-        setQuestions([])
+        const response = await fetch(
+          `/api/quiz-questions?category=${category}&difficulty=${difficulty}&count=${questionCount}`
+        );
+        
+        if (!response.ok) throw new Error("Failed to load questions");
+        
+        const data = await response.json();
+        console.log("Quiz questions response:", data);
+        console.log("Questions array:", data.questions);
+        console.log("Questions length:", data.questions?.length);
+        setQuestions(data.questions || []);
+        setQuizState(prev => ({
+          ...prev,
+          totalQuestions: data.questions?.length || 0,
+          timeRemaining: timeLimit,
+          questionTimeRemaining: timeLimit,
+          questionStartTime: Date.now(),
+          showFeedback: false,
+          submittedAnswers: {},
+          questionTimes: {},
+        }));
+      } catch (err) {
+        setError("Could not load quiz questions. Please try again.");
+        console.error("Error loading questions:", err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    loadQuestions()
-  }, [category, difficulty, count])
+    loadQuestions();
+  }, [category, difficulty, questionCount, timeLimit, status]);
 
-  // Timer effect
+  // Timer effect for per-question timing
   useEffect(() => {
-    if (loading || quizCompleted || !timeLimit) return
+    if (!loading && !quizState.isComplete && quizState.questionTimeRemaining > 0) {
+      const timer = setInterval(() => {
+        setQuizState(prev => {
+          // Update both total time and question time
+          const newTotalTime = Math.max(0, prev.timeRemaining - 1);
+          const newQuestionTime = Math.max(0, prev.questionTimeRemaining - 1);
+          
+          // If question time runs out, auto-submit current question
+          if (newQuestionTime <= 0) {
+            const currentQuestion = questions[prev.currentQuestionIndex];
+            if (currentQuestion && !prev.submittedAnswers[currentQuestion.id]) {
+              // Auto-submit the current question
 
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          if (!isAnswerSubmitted) {
-            handleAnswerSubmit(null)
+              
+              // Calculate time spent on this question
+              const timeSpent = timeLimit - newQuestionTime;
+              
+              return {
+                ...prev,
+                questionTimeRemaining: 0,
+                timeRemaining: newTotalTime,
+                submittedAnswers: { ...prev.submittedAnswers, [currentQuestion.id]: true },
+                questionTimes: { ...prev.questionTimes, [currentQuestion.id]: timeSpent },
+                showFeedback: true,
+              };
+            }
           }
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+          
+          // If total time runs out, end the quiz
+          if (newTotalTime <= 0) {
+            clearInterval(timer);
+            return { ...prev, timeRemaining: 0, questionTimeRemaining: 0, isComplete: true };
+          }
+          
+          return { 
+            ...prev, 
+            timeRemaining: newTotalTime,
+            questionTimeRemaining: newQuestionTime
+          };
+        });
+      }, 1000);
 
-    return () => clearInterval(timer)
-  }, [loading, quizCompleted, timeLimit, isAnswerSubmitted])
-
-  const currentQuestion = questions[currentQuestionIndex]
-
-  const handleAnswerSelect = (answer: string) => {
-    if (isAnswerSubmitted) return
-    setSelectedAnswer(answer)
-  }
-
-  const handleAnswerSubmit = (answer: string | null) => {
-    if (isAnswerSubmitted || !currentQuestion) return
-
-    const finalAnswer = answer || selectedAnswer
-    const isCorrect = finalAnswer === currentQuestion.correctAnswer
-
-    if (isCorrect) {
-      setScore((prev) => prev + 1)
+      return () => clearInterval(timer);
     }
+  }, [loading, quizState.isComplete, quizState.questionTimeRemaining, questions, timeLimit]);
 
-    // Track user answer
-    setUserAnswers(prev => [...prev, {
-      question: currentQuestion.question,
-      userAnswer: finalAnswer,
-      correctAnswer: currentQuestion.correctAnswer,
-      isCorrect: isCorrect
-    }])
-
-    setIsAnswerSubmitted(true)
-    setShowExplanation(true)
-
-    // Move to next question after showing explanation
-    setTimeout(() => {
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex((prev) => prev + 1)
-        setSelectedAnswer(null)
-        setIsAnswerSubmitted(false)
-        setShowExplanation(false)
-        setTimeRemaining(timeLimit)
-      } else {
-        setQuizCompleted(true)
+  const calculateResults = useCallback(() => {
+    let correctAnswers = 0;
+    questions.forEach(question => {
+      const userAnswer = quizState.answers[question.id];
+      if (userAnswer === question.correctAnswer) {
+        correctAnswers++;
       }
-    }, 4000) // Show explanation for 4 seconds
-  }
+    });
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
+    const score = correctAnswers; // Store raw score (number of correct answers)
+    const percentageScore = Math.round((correctAnswers / questions.length) * 100);
+    setQuizState(prev => ({ ...prev, score, percentageScore }));
+    setShowResults(true);
+  }, [questions, quizState.answers]);
 
-  const getCategoryDisplayName = (cat: string) => {
-    const categoryMap: Record<string, string> = {
-      "computer-science": "Computer Science",
-      health: "Health & Medicine",
-      business: "Business",
-      law: "Law",
-      psychology: "Psychology",
-      mathematics: "Mathematics",
-      engineering: "Engineering",
-      "arts-humanities": "Arts & Humanities",
-      "natural-sciences": "Natural Sciences",
-      "social-sciences": "Social Sciences",
-      technology: "Technology",
-    }
-    return categoryMap[cat] || cat
-  }
-
-  const getCategoryIcon = (cat: string) => {
-    const iconMap: Record<string, string> = {
-      "computer-science": "💻",
-      health: "🏥",
-      business: "💼",
-      law: "⚖️",
-      psychology: "🧠",
-      mathematics: "📊",
-      engineering: "🛠️",
-      "arts-humanities": "🎨",
-      "natural-sciences": "🔬",
-      "social-sciences": "🌍",
-      technology: "🤖",
-    }
-    return iconMap[cat] || "📚"
-  }
-
-  // Fetch user quiz history when session is available
+  // Auto-complete quiz when time runs out
   useEffect(() => {
-    if (session?.user?.email) {
-      const fetchUserHistory = async () => {
-        try {
-          const res = await fetch(`/api/user-quiz-history?userId=${encodeURIComponent(session.user!.email!)}`)
-          if (res.ok) {
-            const data = await res.json()
-            setUserQuizHistory(data.quizHistory || [])
-          }
-        } catch (error) {
-          // Silently handle error - not critical for quiz functionality
-        }
-      }
-      fetchUserHistory()
+    if (quizState.isComplete && !showResults) {
+      calculateResults();
     }
-  }, [session])
+  }, [quizState.isComplete, showResults, calculateResults]);
 
-  // Load subject resources and study plans
-  const loadSubjectResourcesAndStudyPlans = async () => {
-    setLoadingResources(true)
+  const handleAnswerSelect = (questionId: string, answer: string) => {
+    setQuizState(prev => ({
+      ...prev,
+      answers: { ...prev.answers, [questionId]: answer }
+    }));
+  };
+
+  const handleAnswerSubmit = (questionId: string) => {
+    const currentQuestion = questions[quizState.currentQuestionIndex];
+    if (!currentQuestion || quizState.submittedAnswers[questionId]) return;
+
+
+
+    // Calculate time spent on this question
+    const timeSpent = timeLimit - quizState.questionTimeRemaining;
+
+    setQuizState(prev => ({
+      ...prev,
+      submittedAnswers: { ...prev.submittedAnswers, [questionId]: true },
+      questionTimes: { ...prev.questionTimes, [questionId]: timeSpent },
+      showFeedback: true,
+    }));
+  };
+
+  const handleNextQuestion = () => {
+    if (quizState.currentQuestionIndex < questions.length - 1) {
+      setQuizState(prev => ({
+        ...prev,
+        currentQuestionIndex: prev.currentQuestionIndex + 1,
+        questionTimeRemaining: timeLimit, // Reset timer for next question
+        questionStartTime: Date.now(), // Reset start time for next question
+        showFeedback: false
+      }));
+    } else {
+      setQuizState(prev => ({ ...prev, isComplete: true }));
+      calculateResults();
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (quizState.currentQuestionIndex > 0) {
+      setQuizState(prev => ({
+        ...prev,
+        currentQuestionIndex: prev.currentQuestionIndex - 1,
+        questionTimeRemaining: timeLimit, // Reset timer for previous question
+        questionStartTime: Date.now(), // Reset start time for previous question
+      }));
+    }
+  };
+
+  const handleFinishQuiz = async () => {
+    if (!session?.user?.email) return;
+
     try {
-      // Fetch resources for the subject
-      const resourcesRes = await fetch(`/api/subjects/${category}/resources`)
-      if (resourcesRes.ok) {
-        const resourcesData = await resourcesRes.json()
-        setSubjectResources(resourcesData.resources || [])
-      }
+      // Prepare questionsAnswered data
+      const questionsAnswered = questions.map(question => {
+        const userAnswer = quizState.answers[question.id];
+        return {
+          question: question.question,
+          userAnswer: userAnswer || '',
+          correctAnswer: question.correctAnswer,
+          isCorrect: userAnswer === question.correctAnswer,
+          topic: category // Use category as topic for now
+        };
+      });
 
-      // Fetch study plans for the category and difficulty
-      const studyPlansRes = await fetch(`/api/study-plans?category=${category}&difficulty=${difficulty}`)
-      if (studyPlansRes.ok) {
-        const studyPlansData = await studyPlansRes.json()
-        setStudyPlans(studyPlansData.studyPlans || [])
+      const response = await fetch("/api/quiz-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session.user.email,
+          category,
+          difficulty,
+          score: quizState.score,
+          totalQuestions: questions.length,
+          timeSpent: Math.round(Object.values(quizState.questionTimes).reduce((sum, time) => sum + time, 0)),
+          date: new Date().toISOString(),
+          questionsAnswered
+        })
+      });
+
+      if (response.ok) {
+        router.push("/dashboard?message=Quiz completed successfully!");
+      } else {
+        const errorData = await response.json();
+        console.error("Error saving quiz result:", errorData);
+        router.push("/dashboard");
       }
     } catch (error) {
-      console.error("Failed to load resources and study plans:", error)
-    } finally {
-      setLoadingResources(false)
+      console.error("Error saving quiz result:", error);
+      router.push("/dashboard");
     }
+  };
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
-  // Save quiz result and generate recommendations when quiz is completed
-  useEffect(() => {
-    if (
-      quizCompleted &&
-      session &&
-      session.user &&
-      typeof session.user.email === "string" &&
-      session.user.email
-    ) {
-      const userEmail = session.user.email;
-      
-      const saveResultAndGenerateRecommendations = async () => {
-        try {
-          // Save quiz result
-          const saveRes = await fetch("/api/quiz-result", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: userEmail,
-              category,
-              difficulty,
-              score,
-              totalQuestions: questions.length,
-              timeSpent: 0,
-              date: new Date().toISOString(),
-              questionsAnswered: userAnswers,
-            }),
-          })
-
-          if (saveRes.ok) {
-            // Load resources and study plans
-            await loadSubjectResourcesAndStudyPlans()
-
-            // Generate recommendations with real data
-            setLoadingRecommendations(true)
-            
-            // Create current quiz result object with proper type handling
-            const currentQuizResult = {
-              id: "current-quiz",
-              userId: userEmail,
-              category,
-              difficulty,
-              score,
-              totalQuestions: questions.length,
-              timeSpent: 0,
-              date: new Date(),
-              questionsAnswered: userAnswers.map(answer => ({
-                question: answer.question,
-                userAnswer: answer.userAnswer || "", // Convert null to empty string
-                correctAnswer: answer.correctAnswer,
-                isCorrect: answer.isCorrect,
-              })),
-            }
-
-            // Generate smart recommendations using the new API
-            const recsResponse = await fetch("/api/smart-recommendations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: userEmail,
-                quizResult: currentQuizResult,
-                questions,
-                learnerType: 'inBetween',
-                includeAnalytics: true,
-                includeStudyPlan: true,
-                includeLearningPaths: true
-              }),
-            })
-
-            if (recsResponse.ok) {
-              const data = await recsResponse.json()
-              
-              setRecommendations(data)
-              setShowRecommendations(true)
-              setLoadingRecommendations(false)
-            }
-          }
-        } catch (error) {
-          console.error("Error saving result or generating recommendations:", error)
-          setLoadingRecommendations(false)
-        }
-      }
-      
-      saveResultAndGenerateRecommendations()
-    }
-  }, [quizCompleted, session, category, difficulty, score, userAnswers, userQuizHistory])
+  if (status === "unauthenticated") {
+    return null; // Will redirect
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold">SmartQuiz</h1>
-            </Link>
-          </div>
-        </header>
-
-        <main className="flex-1 flex items-center justify-center bg-muted/30">
-          <div className="text-center">
-            <div className="text-6xl mb-4">{getCategoryIcon(category)}</div>
-            <GraduationCap className="h-16 w-16 text-primary mx-auto animate-pulse mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Preparing Your SmartQuiz Quiz...</h2>
-            <p className="text-muted-foreground">
-              Loading {count} {getCategoryDisplayName(category)} questions at {difficulty} level
-            </p>
-          </div>
-        </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Loading Quiz</h2>
+          <p className="text-muted-foreground">Preparing your questions...</p>
+        </div>
       </div>
-    )
+    );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold">SmartQuiz</h1>
-            </Link>
-          </div>
-        </header>
-        <main className="flex-1 flex items-center justify-center bg-muted/30">
-          <div className="text-center max-w-md">
-            <div className="text-6xl mb-4">😔</div>
-            <h2 className="text-2xl font-bold mb-4">{error}</h2>
-            <Button onClick={() => router.push("/quiz/new")}>Try Again</Button>
-          </div>
-        </main>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Error Loading Quiz</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
       </div>
-    )
+    );
   }
 
-  if (questions.length === 0) {
+  if (showResults) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold">SmartQuiz</h1>
-            </Link>
-          </div>
-        </header>
-
-        <main className="flex-1 flex items-center justify-center bg-muted/30">
-          <div className="text-center max-w-md">
-            <div className="text-6xl mb-4">😔</div>
-            <h2 className="text-2xl font-bold mb-4">No Questions Available</h2>
-            <p className="text-muted-foreground mb-6">
-              We couldn't find questions for {getCategoryDisplayName(category)} at {difficulty} level. Please try a
-              different subject or difficulty.
-            </p>
-            <Button onClick={() => router.push("/quiz/new")}>Choose Different Options</Button>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
-  if (quizCompleted) {
-    const percentage = Math.round((score / questions.length) * 100)
-
-    return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold">SmartQuiz</h1>
-            </Link>
-          </div>
-        </header>
-
-        <main className="flex-1 py-12 bg-muted/30">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto">
-              {/* Quiz Results Card */}
-              <Card className="overflow-hidden mb-8">
-                <div className="bg-primary h-2" style={{ width: `${percentage}%` }}></div>
-                <CardHeader className="text-center">
-                  <div className="text-4xl mb-4">{getCategoryIcon(category)}</div>
-                  <CardTitle className="text-3xl">SmartQuiz Quiz Completed!</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex justify-center">
-                    {percentage >= 80 ? (
-                      <div className="h-24 w-24 rounded-full bg-green-100 flex items-center justify-center">
-                        <Trophy className="h-12 w-12 text-green-500" />
-                      </div>
-                    ) : percentage >= 60 ? (
-                      <div className="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center">
-                        <Target className="h-12 w-12 text-blue-500" />
-                      </div>
-                    ) : (
-                      <div className="h-24 w-24 rounded-full bg-amber-100 flex items-center justify-center">
-                        <Brain className="h-12 w-12 text-amber-500" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-center">
-                    <h3 className="text-2xl font-bold">Your Score</h3>
-                    <p className="text-5xl font-bold my-4">
-                      {score} / {questions.length}
-                      <span className="text-lg text-muted-foreground ml-2">({percentage}%)</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      {percentage >= 90
-                        ? "Outstanding! You're mastering this subject!"
-                        : percentage >= 80
-                          ? "Excellent work! You have strong knowledge!"
-                          : percentage >= 70
-                            ? "Good job! You're on the right track!"
-                            : percentage >= 60
-                              ? "Not bad! Keep studying to improve!"
-                              : "Keep practicing! Every expert was once a beginner!"}
-                    </p>
-                  </div>
-
-                  <div className="border rounded-lg p-4 bg-muted/30">
-                    <h4 className="font-semibold mb-2">Quiz Summary</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Subject:</div>
-                      <div className="font-medium">{getCategoryDisplayName(category)}</div>
-                      <div>Difficulty:</div>
-                      <div className="font-medium capitalize">{difficulty}</div>
-                      <div>Questions:</div>
-                      <div className="font-medium">{questions.length}</div>
-                      <div>Time Limit:</div>
-                      <div className="font-medium">{timeLimit ? `${timeLimit} seconds` : "No limit"}</div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex flex-col gap-4">
-                  <div className="flex flex-col sm:flex-row gap-4 w-full">
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-auto bg-transparent"
-                      onClick={() => router.push("/quiz/new")}
-                    >
-                      Take Another Quiz
-                    </Button>
-                    <Button className="w-full sm:w-auto" onClick={() => router.push("/")}>
-                      Back to Home
-                    </Button>
-                  </div>
-                  {loadingRecommendations && (
-                    <div className="w-full text-center py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                        <span className="text-sm text-muted-foreground">Generating personalized recommendations...</span>
-                      </div>
-                    </div>
-                  )}
-                </CardFooter>
-              </Card>
-
-              {/* Comprehensive Learning Resources and Study Plans */}
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="h-6 w-6 text-blue-600" />
-                    Learning Resources & Study Plans
-                  </CardTitle>
-                  <p className="text-muted-foreground">
-                    Comprehensive resources and structured study plans for {getCategoryDisplayName(category)}
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="resources">Resources</TabsTrigger>
-                      <TabsTrigger value="study-plan">Study Plan</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="overview" className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <BookOpen className="h-4 w-4 text-blue-500" />
-                              Available Resources
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-2xl font-bold">{subjectResources.length}</p>
-                            <p className="text-sm text-muted-foreground">High-quality learning materials</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <BookMarked className="h-4 w-4 text-green-500" />
-                              Study Plans
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-2xl font-bold">{studyPlans.length}</p>
-                            <p className="text-sm text-muted-foreground">Structured learning paths</p>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2">
-                              <Target className="h-4 w-4 text-purple-500" />
-                              Your Level
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <Badge variant="outline" className="capitalize text-lg">
-                              {difficulty}
-                            </Badge>
-                            <p className="text-sm text-muted-foreground mt-2">Current difficulty level</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            <Lightbulb className="h-5 w-5 text-yellow-600" />
-                            Quick Start Guide
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <h4 className="font-medium">For Beginners</h4>
-                              <ul className="text-sm text-muted-foreground space-y-1">
-                                <li>• Start with fundamental concepts</li>
-                                <li>• Focus on basic terminology</li>
-                                <li>• Complete practice exercises</li>
-                              </ul>
-                            </div>
-                            <div className="space-y-2">
-                              <h4 className="font-medium">For Advanced Learners</h4>
-                              <ul className="text-sm text-muted-foreground space-y-1">
-                                <li>• Dive into complex topics</li>
-                                <li>• Explore advanced resources</li>
-                                <li>• Challenge with difficult problems</li>
-                              </ul>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-
-                    <TabsContent value="resources" className="space-y-6">
-                      {loadingResources ? (
-                        <div className="text-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                          <p className="text-muted-foreground">Loading resources...</p>
-                        </div>
-                      ) : subjectResources.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {subjectResources.map((resource, index) => (
-                            <Card key={index} className="hover:shadow-md transition-shadow">
-                              <CardHeader className="pb-3">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <CardTitle className="text-base">{resource.title}</CardTitle>
-                                    <p className="text-sm text-muted-foreground mt-1">{resource.description}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2 ml-4">
-                                    <Badge variant="outline" className="capitalize">
-                                      {resource.type}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </CardHeader>
-                              <CardContent className="pt-0">
-                                <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                                  <span>{resource.provider || 'SmartQuiz'}</span>
-                                  {resource.rating > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                      <span>{resource.rating.toFixed(1)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="w-full"
-                                  onClick={() => window.open(resource.url, '_blank')}
-                                >
-                                  <ExternalLink className="h-4 w-4 mr-2" />
-                                  View Resource
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">No resources available for this subject</p>
-                        </div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="study-plan" className="space-y-6">
-                      {loadingResources ? (
-                        <div className="text-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                          <p className="text-muted-foreground">Loading study plans...</p>
-                        </div>
-                      ) : studyPlans.length > 0 ? (
-                        <div className="space-y-4">
-                          {studyPlans.map((plan, index) => (
-                            <Card key={index}>
-                              <CardHeader>
-                                <div className="flex items-center justify-between">
-                                  <CardTitle className="text-lg">Week {plan.week}</CardTitle>
-                                  <Badge variant="outline">{plan.focus}</Badge>
-                                </div>
-                              </CardHeader>
-                              <CardContent className="space-y-4">
-                                <div>
-                                  <h4 className="font-medium mb-2">Focus Area</h4>
-                                  <p className="text-sm text-muted-foreground">{plan.focus}</p>
-                                </div>
-
-                                {plan.goals && plan.goals.length > 0 && (
-                                  <div>
-                                    <h4 className="font-medium mb-2">Learning Goals</h4>
-                                    <ul className="text-sm text-muted-foreground space-y-1">
-                                      {plan.goals.map((goal: string, goalIndex: number) => (
-                                        <li key={goalIndex} className="flex items-center gap-2">
-                                          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                                          {goal}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-
-                                {plan.quizTopics && plan.quizTopics.length > 0 && (
-                                  <div>
-                                    <h4 className="font-medium mb-2">Quiz Topics</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                      {plan.quizTopics.map((topic: string, topicIndex: number) => (
-                                        <Badge key={topicIndex} variant="secondary">
-                                          {topic}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {plan.resources && plan.resources.length > 0 && (
-                                  <div>
-                                    <h4 className="font-medium mb-2">Recommended Resources</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                      {plan.resources.map((resource: string, resourceIndex: number) => (
-                                        <Badge key={resourceIndex} variant="outline">
-                                          {resource}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <BookMarked className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">No study plans available for this subject</p>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-
-              {/* Smart Recommendations */}
-              {showRecommendations && recommendations && (
-                <div className="mb-8">
-                  <div className="mb-6 text-center">
-                    <h2 className="text-2xl font-bold mb-2">Your Personalized Recommendations</h2>
-                    <p className="text-muted-foreground">
-                      Based on your quiz performance and learning history, here are AI-powered recommendations to help you improve:
-                    </p>
-                  </div>
-                  <SmartRecommendationPanel 
-                    recommendations={recommendations} 
-                    onStartQuiz={(category, difficulty) => {
-                      router.push(`/quiz/play?category=${category}&difficulty=${difficulty}&count=10&time=60`)
-                    }}
-                  />
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-8">
+        <div className="container mx-auto px-4 max-w-6xl">
+          {/* Quiz Results Summary */}
+          <Card className="text-center mb-6">
+            <CardHeader>
+              <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <Trophy className="h-10 w-10 text-primary" />
+              </div>
+              <CardTitle className="text-3xl font-bold">Quiz Complete!</CardTitle>
+              <CardDescription>
+                Great job completing the {category} quiz
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                  <div className="text-3xl font-bold text-blue-600">{quizState.percentageScore}%</div>
+                  <div className="text-sm text-muted-foreground">Final Score</div>
                 </div>
-              )}
+                <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <div className="text-3xl font-bold text-green-600">{questions.length}</div>
+                  <div className="text-sm text-muted-foreground">Questions</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {Math.round(Object.values(quizState.questionTimes).reduce((sum, time) => sum + time, 0) / questions.length)}s
+                  </div>
+                  <div className="text-sm text-muted-foreground">Avg Time/Question</div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Performance Summary</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span className="font-medium">Correct Answers</span>
+                    </div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {quizState.score}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-2">
+                      <XCircle className="h-5 w-5 text-red-500" />
+                      <span className="font-medium">Incorrect Answers</span>
+                    </div>
+                    <div className="text-2xl font-bold text-red-600">
+                      {questions.length - quizState.score}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button onClick={handleFinishQuiz} className="gap-2">
+                  <Trophy className="h-4 w-4" />
+                  Save Results
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => router.push("/quiz/new")}
+                  className="gap-2"
+                >
+                  <Brain className="h-4 w-4" />
+                  Take Another Quiz
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Advanced AI-Powered Recommendations */}
+          {session?.user?.email && (
+            <div className="space-y-6">
+              {/* Enhanced Header for Advanced AI Recommendations */}
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
+                    <Brain className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      Advanced AI Analysis
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Machine learning-powered insights and personalized recommendations
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                    <span>ML Analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></div>
+                    <span>Predictive Insights</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Adaptive Learning</span>
+                  </div>
+                </div>
+              </div>
+
+              <AdvancedAIRecommendationPanel
+                userId={session.user.email}
+                quizResult={{
+                  id: 'temp-id',
+                  userId: session.user.email,
+                  category,
+                  difficulty,
+                  score: quizState.score,
+                  totalQuestions: questions.length,
+                  timeSpent: Math.round(Object.values(quizState.questionTimes).reduce((sum, time) => sum + time, 0)),
+                  date: new Date().toISOString(),
+                  questionsAnswered: questions.map(question => {
+                    const userAnswer = quizState.answers[question.id];
+                    return {
+                      question: question.question,
+                      userAnswer: userAnswer || '',
+                      correctAnswer: question.correctAnswer,
+                      isCorrect: userAnswer === question.correctAnswer,
+                      topic: category
+                    };
+                  })
+                }}
+                questions={questions as unknown as Record<string, unknown>[]}
+                userHistory={[]}
+                learnerType="inBetween"
+                onResourceClick={(resource: Record<string, unknown>) => {
+                  if (resource.url) {
+                    window.open(resource.url as string, '_blank');
+                  }
+                }}
+              />
+
+              {/* Quick Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4 border-t">
+                <Button 
+                  onClick={() => router.push("/dashboard")}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Trophy className="h-4 w-4" />
+                  View Dashboard
+                </Button>
+                <Button 
+                  onClick={() => router.push("/analytics")}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Detailed Analytics
+                </Button>
+                <Button 
+                  onClick={() => router.push("/learning-paths")}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Learning Paths
+                </Button>
+              </div>
             </div>
-          </div>
-        </main>
+          )}
+        </div>
       </div>
-    )
+    );
   }
+
+  console.log("Questions array length:", questions.length);
+  console.log("Current question index:", quizState.currentQuestionIndex);
+  console.log("Questions array:", questions);
+  
+  const currentQuestion = questions[quizState.currentQuestionIndex];
+  console.log("Current question:", currentQuestion);
+  
+  const progress = ((quizState.currentQuestionIndex + 1) / questions.length) * 100;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <GraduationCap className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">SmartQuiz</h1>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Badge variant="outline" className="gap-1">
-              <span className="text-lg">{getCategoryIcon(category)}</span>
-              <span>{getCategoryDisplayName(category)}</span>
-            </Badge>
-            <Badge variant="outline" className="capitalize">
-              {difficulty}
-            </Badge>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 py-12 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        {/* Quiz Header */}
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <span className="text-sm text-muted-foreground">Question</span>
-                <h2 className="text-xl font-bold">
-                  {currentQuestionIndex + 1} of {questions.length}
-                </h2>
+                <h1 className="text-2xl font-bold">{category} Quiz</h1>
+                <p className="text-muted-foreground">Difficulty: {difficulty}</p>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Score:</span>
-                  <Badge variant="secondary">{score}</Badge>
-                </div>
-                {timeLimit > 0 && (
+                <div className="text-center">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className={`font-mono ${timeRemaining < 10 ? "text-destructive animate-pulse" : ""}`}>
-                      {formatTime(timeRemaining)}
+                    <Timer className={cn("h-5 w-5", {
+                      "text-red-500": quizState.questionTimeRemaining <= 10,
+                      "text-orange-500": quizState.questionTimeRemaining > 10
+                    })} />
+                    <span className={cn("text-lg font-bold", {
+                      "text-red-500": quizState.questionTimeRemaining <= 10,
+                      "text-orange-500": quizState.questionTimeRemaining > 10 && quizState.questionTimeRemaining <= 30,
+                    })}>
+                      {Math.floor(quizState.questionTimeRemaining / 60)}:
+                      {(quizState.questionTimeRemaining % 60).toString().padStart(2, '0')}
                     </span>
                   </div>
-                )}
+                  <p className="text-xs text-muted-foreground">Time Remaining</p>
+                  {quizState.questionTimeRemaining <= 10 && (
+                    <p className="text-xs text-red-500 font-medium">Time running out!</p>
+                  )}
+                </div>
               </div>
             </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Progress</span>
+                <span>{quizState.currentQuestionIndex + 1} of {questions.length}</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
 
-            <Progress value={((currentQuestionIndex + 1) / questions.length) * 100} className="mb-8" />
+        {/* Question Card */}
+        {questions.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="text-center">
+                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">No Questions Available</h2>
+                <p className="text-muted-foreground mb-4">
+                  No questions found for the selected category and difficulty.
+                </p>
+                <Button onClick={() => router.push("/quiz/new")}>
+                  Choose Different Quiz
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : currentQuestion ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-sm font-normal text-muted-foreground">
+                  Question {quizState.currentQuestionIndex + 1}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h2 className="text-lg font-medium mb-4">{currentQuestion.question}</h2>
+                
+                <div className="space-y-3">
+                  {currentQuestion.options.map((option, index) => {
+                    const isSelected = quizState.answers[currentQuestion.id] === option;
+                    const isSubmitted = quizState.submittedAnswers[currentQuestion.id];
+                    const isCorrect = option === currentQuestion.correctAnswer;
+                    
+                    let buttonClass = 'w-full p-4 text-left rounded-lg border-2 transition-all duration-200 ';
+                    let textClass = '';
+                    
+                    if (isSubmitted) {
+                      if (isCorrect) {
+                        buttonClass += 'border-green-500 bg-green-50 dark:bg-green-950/20 shadow-md';
+                        textClass = 'text-green-800 dark:text-green-200 font-medium';
+                      } else if (isSelected) {
+                        buttonClass += 'border-red-500 bg-red-50 dark:bg-red-950/20 shadow-md';
+                        textClass = 'text-red-800 dark:text-red-200 font-medium';
+                      } else {
+                        buttonClass += 'border-gray-300 bg-gray-50 dark:bg-gray-800/50 dark:border-gray-600';
+                        textClass = 'text-gray-600 dark:text-gray-400';
+                      }
+                    } else {
+                      if (isSelected) {
+                        buttonClass += 'border-primary bg-primary/10 dark:bg-primary/20 shadow-sm';
+                        textClass = 'text-primary-foreground dark:text-primary-200 font-medium';
+                      } else {
+                        buttonClass += 'border-gray-300 dark:border-gray-600 hover:border-primary/50 hover:bg-primary/5 dark:hover:bg-primary/10';
+                        textClass = 'text-gray-800 dark:text-gray-200';
+                      }
+                    }
 
-            {currentQuestion && (
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle className="text-xl">{currentQuestion.question}</CardTitle>
-                  {currentQuestion.topic && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {currentQuestion.topic}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {currentQuestion.difficulty}
-                      </Badge>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {currentQuestion.options.map((option) => {
-                      const isSelected = selectedAnswer === option
-                      const isCorrect = isAnswerSubmitted && option === currentQuestion.correctAnswer
-                      const isWrong = isAnswerSubmitted && isSelected && option !== currentQuestion.correctAnswer
-
-                      return (
-                        <Button
-                          key={option}
-                          variant={isSelected ? "default" : "outline"}
-                          className={`h-auto py-4 px-6 justify-start text-left ${
-                            isCorrect
-                              ? "bg-green-500 hover:bg-green-500 text-white"
-                              : isWrong
-                                ? "bg-red-500 hover:bg-red-500 text-white"
-                                : ""
-                          }`}
-                          onClick={() => handleAnswerSelect(option)}
-                          disabled={isAnswerSubmitted}
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <span className="flex-1">{option}</span>
-                            {isCorrect && <CheckCircle className="h-5 w-5" />}
-                            {isWrong && <XCircle className="h-5 w-5" />}
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswerSelect(currentQuestion.id, option)}
+                        className={buttonClass}
+                        disabled={isSubmitted}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isSubmitted && isCorrect
+                              ? 'border-green-500 bg-green-100 dark:bg-green-900/30'
+                              : isSubmitted && isSelected && !isCorrect
+                              ? 'border-red-500 bg-red-100 dark:bg-red-900/30'
+                              : isSelected
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}>
+                            {isSelected && !isSubmitted && <CheckCircle className="h-5 w-5" />}
+                            {isSubmitted && isCorrect && <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />}
+                            {isSubmitted && isSelected && !isCorrect && <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />}
                           </div>
-                        </Button>
-                      )
-                    })}
+                          <span className={textClass}>{option}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Feedback Section */}
+              {quizState.submittedAnswers[currentQuestion.id] && (
+                <div className={`mt-6 p-6 rounded-xl border-2 shadow-lg ${
+                  quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer
+                    ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800'
+                    : 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800'
+                }`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    {quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer ? (
+                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                        <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                        <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                      </div>
+                    )}
+                    <div>
+                      <h4 className={`text-lg font-bold ${
+                        quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer
+                          ? 'text-green-800 dark:text-green-200'
+                          : 'text-red-800 dark:text-red-200'
+                      }`}>
+                        {quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer 
+                          ? "Excellent! That's Correct!" 
+                          : "Not quite right, but that's okay!"}
+                      </h4>
+                      <p className={`text-sm ${
+                        quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer
+                          ? 'text-green-600 dark:text-green-300'
+                          : 'text-red-600 dark:text-red-300'
+                      }`}>
+                        {quizState.answers[currentQuestion.id] === currentQuestion.correctAnswer
+                          ? "Great job! You've got this concept down."
+                          : "Let's learn from this and improve!"}
+                      </p>
+                    </div>
                   </div>
-                  {showExplanation && currentQuestion.explanation && (
-                    <div className="mt-6 p-4 rounded-lg bg-muted/50 border-l-4 border-primary">
-                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  
+                  {currentQuestion.explanation && (
+                    <div className="mb-4 p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg border">
+                      <h5 className="font-semibold mb-2 flex items-center gap-2 text-gray-800 dark:text-gray-200">
                         <Brain className="h-4 w-4" />
                         Explanation
-                      </h4>
-                      <p className="text-sm text-muted-foreground mb-2">{currentQuestion.explanation}</p>
-                      {currentQuestion.relatedConcepts && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          <span className="text-xs text-muted-foreground">Related concepts:</span>
-                          {currentQuestion.relatedConcepts.map((concept) => (
-                            <Badge key={concept} variant="outline" className="text-xs">
-                              {concept}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      </h5>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                        {currentQuestion.explanation}
+                      </p>
                     </div>
                   )}
-                </CardContent>
-                <CardFooter>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg border">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Your Answer:</p>
+                      <p className="font-semibold text-gray-800 dark:text-gray-200">
+                        {quizState.answers[currentQuestion.id]}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg border">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Correct Answer:</p>
+                      <p className="font-semibold text-green-700 dark:text-green-300">
+                        {currentQuestion.correctAnswer}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={handlePreviousQuestion}
+                  disabled={quizState.currentQuestionIndex === 0}
+                  className="gap-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                {!quizState.submittedAnswers[currentQuestion.id] ? (
                   <Button
-                    className="w-full gap-2"
-                    onClick={() => handleAnswerSubmit(selectedAnswer)}
-                    disabled={!selectedAnswer || isAnswerSubmitted}
+                    onClick={() => handleAnswerSubmit(currentQuestion.id)}
+                    disabled={!quizState.answers[currentQuestion.id]}
+                    className="gap-2"
                   >
-                    {isAnswerSubmitted ? "Next Question" : "Submit Answer"}
-                    <ArrowRight className="h-5 w-5" />
+                    Submit Answer
+                    <CheckCircle className="h-4 w-4" />
                   </Button>
-                </CardFooter>
-              </Card>
-            )}
-          </div>
-        </div>
-      </main>
+                ) : (
+                  <Button
+                    onClick={handleNextQuestion}
+                    className="gap-2"
+                  >
+                    {quizState.currentQuestionIndex === questions.length - 1 ? (
+                      <>
+                        Finish Quiz
+                        <Trophy className="h-4 w-4" />
+                      </>
+                    ) : (
+                      <>
+                        Next
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
     </div>
-  )
+  );
 }

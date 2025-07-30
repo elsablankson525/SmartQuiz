@@ -13,20 +13,64 @@ import { useSession } from "next-auth/react"
 import jsPDF from "jspdf"
 import LessonQuiz from "@/components/LessonQuiz"
 
+interface Subject {
+  id: string;
+  name: string;
+  description: string;
+  topics: string[];
+  difficulty: string;
+  color: string;
+  icon: string;
+  borderColor: string;
+  rating: number;
+  quizzes: number;
+  lessons: number;
+  resources: number;
+  learners: number;
+  avgTime: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  description: string;
+  order: number;
+  type: string;
+  estimatedTime: string;
+  content: string;
+}
+
+interface Resource {
+  id: string;
+  title: string;
+  type: string;
+  url: string;
+  difficulty: string;
+  estimatedTime: string;
+}
+
+interface Certificate {
+  id: string;
+  userId: string;
+  subjectId: string;
+  issuedAt: Date;
+  certificateUrl?: string;
+}
+
 export default function SubjectStudyPage() {
   const router = useRouter()
   const params = useParams()
   const { id } = params as { id: string }
-  const [subject, setSubject] = useState<any>(null)
-  const [lessons, setLessons] = useState<any[]>([])
-  const [resources, setResources] = useState<any[]>([])
+  const [subject, setSubject] = useState<Subject | null>(null)
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedLesson, setSelectedLesson] = useState<string | null>(null)
   const [completedLessons, setCompletedLessons] = useState<string[]>([])
   const { data: session } = useSession();
   const userName = session?.user?.name || "Your Name"
-  const [certificate, setCertificate] = useState<any>(null)
+  const [certificate, setCertificate] = useState<Certificate | null>(null)
 
   // Fetch completed lessons from backend
   useEffect(() => {
@@ -51,17 +95,17 @@ export default function SubjectStudyPage() {
         setCertificate((await certRes.json()).certificate)
         // Auto-select the first incomplete lesson, or the first lesson if all are complete
         if (!selectedLesson && lessonsData.length > 0) {
-          const firstIncomplete = lessonsData.find((l: any) => !completed.includes(l.id))
+          const firstIncomplete = lessonsData.find((l: Lesson) => !completed.includes(l.id))
           setSelectedLesson(firstIncomplete ? firstIncomplete.id : lessonsData[0].id)
         }
-      } catch (err) {
+      } catch {
         setError("Could not load subject. Please try again later.")
       } finally {
         setLoading(false)
       }
     }
     fetchProgressAndCert()
-  }, [id])
+  }, [id, selectedLesson])
 
   // Mark lesson as complete in backend
   const handleMarkComplete = async (lessonId: string) => {
@@ -72,7 +116,7 @@ export default function SubjectStudyPage() {
         body: JSON.stringify({ lessonId }),
       })
       setCompletedLessons((prev) => prev.includes(lessonId) ? prev : [...prev, lessonId])
-    } catch (err) {
+    } catch {
       // Optionally show error
     }
   }
@@ -88,7 +132,7 @@ export default function SubjectStudyPage() {
 
   // Certificate download (styled PDF)
   const handleDownloadCertificate = () => {
-    const doc = new jsPDF({ orientation: "landscape" })
+    const doc = new jsPDF("landscape")
     // Background
     doc.setFillColor(245, 245, 245)
     doc.rect(0, 0, 297, 210, "F")
@@ -215,7 +259,7 @@ export default function SubjectStudyPage() {
                     >
                       {lessonIcon(lesson.type)}
                       <span className="flex-1 text-left font-medium">{lesson.title}</span>
-                      <span className="text-xs text-muted-foreground">{lesson.duration}</span>
+                      <span className="text-xs text-muted-foreground">{lesson.estimatedTime}</span>
                       {completedLessons.includes(lesson.id) && <span className="ml-2 text-green-600">✔</span>}
                     </button>
                     {selectedLesson === lesson.id && (

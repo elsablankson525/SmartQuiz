@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
+// Define proper types for quiz results
+interface QuizResult {
+  score: number
+  totalQuestions: number
+  timeSpent: number
+  date: Date
+  category: string
+  difficulty: string
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -47,7 +57,7 @@ export async function GET(req: Request) {
         startDate.setDate(now.getDate() - 30)
     }
 
-    // Fetch quiz results for user within the time range
+    // Fetch quiz results for user within the time range with limit for performance
     const quizResults = await prisma.quizResult.findMany({ 
       where: { 
         userId: user.id,
@@ -55,17 +65,18 @@ export async function GET(req: Request) {
           gte: startDate
         }
       },
-      orderBy: { date: 'desc' }
-    })
+      orderBy: { date: 'desc' },
+      take: 100 // Limit to last 100 results for performance
+    }) as QuizResult[]
 
     // Calculate analytics
     const totalQuizzes = quizResults.length
     const averageScore = totalQuizzes > 0 
-      ? Math.round(quizResults.reduce((sum, q) => sum + (q.score / q.totalQuestions) * 100, 0) / totalQuizzes)
+      ? Math.round(quizResults.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / totalQuizzes)
       : 0
     
     const totalTimeSpent = totalQuizzes > 0 
-      ? quizResults.reduce((sum, q) => sum + q.timeSpent, 0)
+      ? quizResults.reduce((sum: number, q: QuizResult) => sum + q.timeSpent, 0)
       : 0
     
     const timeSpentFormatted = totalTimeSpent > 0 
@@ -77,10 +88,10 @@ export async function GET(req: Request) {
     if (totalQuizzes > 0) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      let currentDate = new Date(today)
+      const currentDate = new Date(today)
       
       for (let i = 0; i < 30; i++) { // Check last 30 days
-        const hasActivity = quizResults.some(q => {
+        const hasActivity = quizResults.some((q: QuizResult) => {
           const quizDate = new Date(q.date)
           quizDate.setHours(0, 0, 0, 0)
           return quizDate.getTime() === currentDate.getTime()
@@ -103,8 +114,8 @@ export async function GET(req: Request) {
       const firstHalf = quizResults.slice(midPoint)
       const secondHalf = quizResults.slice(0, midPoint)
       
-      const firstHalfAvg = firstHalf.reduce((sum, q) => sum + (q.score / q.totalQuestions) * 100, 0) / firstHalf.length
-      const secondHalfAvg = secondHalf.reduce((sum, q) => sum + (q.score / q.totalQuestions) * 100, 0) / secondHalf.length
+      const firstHalfAvg = firstHalf.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / firstHalf.length
+      const secondHalfAvg = secondHalf.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / secondHalf.length
       
       improvement = Math.round(secondHalfAvg - firstHalfAvg)
     }
@@ -134,7 +145,7 @@ export async function GET(req: Request) {
       time: `${Math.round(q.timeSpent / 60)}m`,
     }))
 
-    // Get user achievements
+    // Get user achievements (simplified - just fetch existing ones)
     const achievements = await prisma.achievement.findMany({
       where: { userId: user.id },
       select: {
@@ -143,45 +154,9 @@ export async function GET(req: Request) {
         description: true,
         icon: true,
         earned: true
-      }
+      },
+      take: 10 // Limit to 10 achievements for performance
     })
-
-    // If no achievements found, create some default ones
-    if (achievements.length === 0) {
-      const defaultAchievements = [
-        { title: 'Quiz Master', description: 'Completed 100+ quizzes', icon: '🏆', earned: totalQuizzes >= 100 },
-        { title: 'Streak Champion', description: '30-day learning streak', icon: '🔥', earned: streak >= 30 },
-        { title: 'Subject Expert', description: 'Achieved 90%+ in a category', icon: '🎓', earned: averageScore >= 90 },
-        { title: 'Speed Learner', description: '10+ quizzes in one day', icon: '⚡', earned: false },
-        { title: 'Geography Pro', description: 'Excelled in Geography quizzes', icon: '🌍', earned: false },
-        { title: 'Music Maestro', description: 'Excelled in Music quizzes', icon: '🎵', earned: false },
-        { title: 'Entertainment Guru', description: 'Excelled in Entertainment quizzes', icon: '🎬', earned: false },
-        { title: '100 Quizzes', description: 'Completed 100 quizzes', icon: '💯', earned: totalQuizzes >= 100 },
-      ]
-      
-      // Create achievements for this user
-      for (const achievement of defaultAchievements) {
-        await prisma.achievement.create({
-          data: {
-            ...achievement,
-            userId: user.id
-          }
-        })
-      }
-      
-      // Fetch the newly created achievements
-      const newAchievements = await prisma.achievement.findMany({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          icon: true,
-          earned: true
-        }
-      })
-      achievements.push(...newAchievements)
-    }
 
     // Category breakdown
     const categoryBreakdown = Object.entries(subjectScores).map(([category, scores]) => ({
@@ -190,7 +165,7 @@ export async function GET(req: Request) {
       average: Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
     }))
 
-    // Weekly progress (last 4 weeks)
+    // Weekly progress (last 4 weeks) - simplified
     const weeklyProgress = []
     for (let i = 3; i >= 0; i--) {
       const weekStart = new Date()

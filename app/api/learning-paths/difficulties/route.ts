@@ -9,7 +9,7 @@ export async function GET() {
     });
     const uniqueDifficulties = difficulties.map((d) => d.difficulty).filter(Boolean);
     return NextResponse.json({ difficulties: uniqueDifficulties });
-  } catch (error) {
+      } catch {
     return NextResponse.json({ error: "Failed to fetch difficulties" }, { status: 500 });
   }
 } 

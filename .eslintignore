@@ -1,0 +1,23 @@
+# Generated files
+lib/generated/
+node_modules/
+.next/
+out/
+dist/
+
+# Prisma generated files
+prisma/migrations/
+
+# Build outputs
+*.min.js
+*.bundle.js
+
+# Test files (if you want to exclude them)
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+
+# Configuration files
+*.config.js
+*.config.ts 

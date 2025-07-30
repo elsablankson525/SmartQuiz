@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 export async function GET(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
     const userId = searchParams.get("userId")
 
     // Build query
-    const where: any = {}
+    const where: Prisma.LearningPathWhereInput = {}
     if (category && category !== "All") where.category = category
     if (difficulty && difficulty !== "All") where.difficulty = difficulty
     if (search) {
@@ -27,14 +28,14 @@ export async function GET(req: Request) {
     const pathIds = paths.map((p) => p.id)
     const allMilestones = await prisma.milestone.findMany({ where: { learningPathId: { in: pathIds } } })
     // Group milestones by pathId
-    const milestonesByPath: Record<string, any[]> = {}
+    const milestonesByPath: Record<string, Prisma.MilestoneGetPayload<Record<string, never>>[]> = {}
     allMilestones.forEach(m => {
       if (!milestonesByPath[m.learningPathId]) milestonesByPath[m.learningPathId] = []
       milestonesByPath[m.learningPathId].push(m)
     })
 
     // If userId is provided, fetch user quiz results for progress tracking
-    let userQuizResults: any[] = []
+    let userQuizResults: Prisma.QuizResultGetPayload<Record<string, never>>[] = []
     if (userId) {
       // Find user by email first
       const user = await prisma.user.findUnique({ where: { email: userId } })
@@ -74,7 +75,7 @@ export async function GET(req: Request) {
     })
 
     return NextResponse.json({ learningPaths: result })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch learning paths" }, { status: 500 })
   }
 }
@@ -88,7 +89,7 @@ export async function GET_DIFFICULTIES() {
     });
     const uniqueDifficulties = difficulties.map(d => d.difficulty).filter(Boolean);
     return NextResponse.json({ difficulties: uniqueDifficulties });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch difficulties" }, { status: 500 });
   }
 } 

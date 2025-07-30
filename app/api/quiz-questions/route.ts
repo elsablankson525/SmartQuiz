@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 export async function GET(req: Request) {
   try {
@@ -17,17 +18,20 @@ export async function GET(req: Request) {
       }, { status: 400 })
     }
 
-    const where: any = {}
+    const where: Prisma.QuizQuestionWhereInput = {}
     
     // Handle category filtering - category can be either ID or name
     if (category && category.trim()) {
+      console.log("Filtering by category:", category);
       // Check if category is an ID (cuid format) or name
       if (category.startsWith('cmd')) {
         // It's likely a category ID
         where.categoryId = category
+        console.log("Using categoryId filter:", category);
       } else {
         // It's likely a category name
         where.category = { name: category }
+        console.log("Using category name filter:", category);
       }
     }
     
@@ -47,6 +51,9 @@ export async function GET(req: Request) {
         category: true, // Include category relation for response
       }
     })
+    
+    console.log("Found questions:", questions.length);
+    console.log("Where clause:", JSON.stringify(where, null, 2));
 
     // Shuffle if random=true
     if (random) {
@@ -60,7 +67,7 @@ export async function GET(req: Request) {
     questions = questions.slice(0, count)
 
     // Format response
-    const result = questions.map((q: any) => ({
+    const result = questions.map((q: Prisma.QuizQuestionGetPayload<{ include: { category: true } }>) => ({
       id: q.id,
       question: q.question,
       options: q.options,

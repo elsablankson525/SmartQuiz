@@ -1,34 +1,50 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import {
-  GraduationCap,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Clock,
-  Award,
-  BookOpen,
-  Brain,
-  BarChart3,
-  Calendar,
-} from "lucide-react"
 import { useSession } from "next-auth/react"
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
 
-const timeRanges = ["7d", "30d", "90d", "all"]
-
 export default function AnalyticsPage() {
   const { data: session } = useSession();
-  const router = useRouter()
   const [selectedTimeRange, setSelectedTimeRange] = useState("30d")
-  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [analyticsData, setAnalyticsData] = useState<{
+    totalQuizzes: number;
+    averageScore: number;
+    timeSpent: string;
+    streak: number;
+    improvement: number;
+    strongSubjects: string[];
+    weakSubjects: string[];
+    recentActivity: Array<{
+      date: string;
+      subject: string;
+      score: number;
+      time: string;
+    }>;
+    achievements: Array<{
+      id: string;
+      title: string;
+      description: string;
+      icon: string;
+      earned: boolean;
+    }>;
+    categoryBreakdown: Array<{
+      category: string;
+      count: number;
+      average: number;
+    }>;
+    weeklyProgress: Array<{
+      week: string;
+      quizzes: number;
+      average: number;
+    }>;
+    difficultyProgression: Array<{
+      difficulty: string;
+      count: number;
+      average: number;
+    }>;
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,7 +67,7 @@ export default function AnalyticsPage() {
         if (!res.ok) throw new Error("Failed to fetch analytics")
         const data = await res.json()
         setAnalyticsData(data.analytics)
-      } catch (err) {
+      } catch {
         setError("Could not load analytics. Please try again later.")
       } finally {
         setLoading(false)

@@ -29,6 +29,8 @@ model User {
   totalScore    Int      @default(0) // Added: stores the user's total score
   userLessonProgress UserLessonProgress[]
   userCertificates UserCertificate[]
+  userPreferences UserPreferences?
+  quizSetRecommendations QuizSetRecommendation[]
 }
 
 model Account {
@@ -256,4 +258,88 @@ model UserCertificate {
   certificateUrl String?
 
   @@unique([userId, subjectId])
+}
+
+model UserPreferences {
+  id                    String   @id @default(cuid())
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  
+  // Learning preferences
+  learningStyle         String   @default("mixed") // visual, reading, practice, mixed
+  preferredTimeOfDay    String?  // morning, afternoon, evening, night
+  studySessionDuration  Int      @default(30) // minutes
+  weeklyStudyHours      Int      @default(10) // hours per week
+  
+  // Quiz preferences
+  preferredDifficulty   String   @default("beginner") // beginner, intermediate, advanced, adaptive
+  preferredSubjects     String[] // Array of subject names
+  quizTimeLimit         Int?     // seconds per question (null = no limit)
+  showExplanations      Boolean  @default(true)
+  
+  // Recommendation preferences
+  enableSmartRecommendations Boolean @default(true)
+  enableStudyPlans           Boolean @default(true)
+  enableProgressTracking      Boolean @default(true)
+  enableAdaptiveLearning      Boolean @default(true)
+  
+  // Notification preferences
+  emailNotifications    Boolean @default(true)
+  pushNotifications     Boolean @default(true)
+  weeklyProgressReport  Boolean @default(true)
+  achievementAlerts     Boolean @default(true)
+  
+  // Performance goals
+  targetScore           Int?     // Target percentage score
+  targetSubjects        String[] // Subjects to focus on
+  learningGoals         String[] // Array of goal descriptions
+  
+  // Quiz set specific preferences
+  quizSetPreferences    Json?    // Store preferences for each quiz set
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId])
+}
+
+model QuizSetRecommendation {
+  id                    String   @id @default(cuid())
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  quizSetId             String   // e.g., "mathematics-beginner"
+  subject               String
+  difficulty            String
+  
+  // Performance tracking
+  lastScore             Int?
+  bestScore             Int?
+  averageScore          Float?
+  attemptsCount         Int      @default(0)
+  totalTimeSpent        Int      @default(0) // seconds
+  
+  // Recommendation data
+  currentLevel          String   @default("beginner") // beginner, intermediate, advanced, adaptive
+  recommendedNextLevel  String?
+  weakAreas             String[]
+  strongAreas           String[]
+  
+  // Study plan tracking
+  currentStudyPlan      Json?    // Current study plan data
+  studyPlanProgress     Int      @default(0) // percentage complete
+  lastStudySession      DateTime?
+  
+  // Resource usage
+  recommendedResources  String[] // Array of resource IDs
+  completedResources    String[] // Array of completed resource IDs
+  
+  // Adaptive learning data
+  learningPace          String   @default("moderate") // slow, moderate, fast
+  confidenceLevel       String   @default("moderate") // low, moderate, high
+  readinessForNextLevel Boolean  @default(false)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, quizSetId])
 }

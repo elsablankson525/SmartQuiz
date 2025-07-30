@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get("search")
-    const where: any = {}
+    const where: Prisma.SubjectWhereInput = {}
     
     if (search && search.trim()) {
       where.OR = [

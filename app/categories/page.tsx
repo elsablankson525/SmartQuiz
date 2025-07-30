@@ -4,11 +4,37 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Brain, Code, Globe, Atom, Music, Film, BookOpen, Dumbbell } from "lucide-react"
+import { Brain } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSession } from "next-auth/react"
+
+// Define proper types
+interface Category {
+  id: string
+  name: string
+  description: string
+  color: string
+  icon: string
+  iconColor: string
+  questionCount: number
+}
+
+interface LearningPath {
+  id: string
+  category: string
+  title: string
+  description: string
+  difficulty: string
+  duration: string
+  progress: number
+  milestones: Array<{
+    id: string
+    title: string
+    isCompleted: boolean
+  }>
+}
 
 function CategoriesSkeleton() {
   return (
@@ -30,8 +56,8 @@ function CategoriesSkeleton() {
 }
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<any[]>([])
-  const [learningPaths, setLearningPaths] = useState<any[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { data: session } = useSession()
@@ -58,7 +84,7 @@ export default function CategoriesPage() {
         if (!lpRes.ok) throw new Error("Failed to fetch learning paths")
         const lpData = await lpRes.json()
         setLearningPaths(lpData.learningPaths)
-      } catch (err) {
+      } catch {
         setError("Could not load categories or learning paths. Please try again later.")
       } finally {
         setLoading(false)
@@ -72,7 +98,7 @@ export default function CategoriesPage() {
 
   // Helper to get learning path for a category
   function getLearningPathForCategory(categoryName: string) {
-    return learningPaths.find((lp: any) => lp.category === categoryName)
+    return learningPaths.find((lp: LearningPath) => lp.category === categoryName)
   }
 
   return (
@@ -88,7 +114,9 @@ export default function CategoriesPage() {
                 <Card key={category.id} className="overflow-hidden hover:shadow-md transition-shadow">
                   <CardHeader className={`${category.color}`}>
                     <div className="flex justify-between items-start">
-                      <category.icon className={`h-8 w-8 ${category.iconColor}`} />
+                      <span className={`h-8 w-8 ${category.iconColor} text-2xl flex items-center justify-center`}>
+                        {category.icon || "📚"}
+                      </span>
                       <Badge variant="secondary">{category.questionCount}+ Questions</Badge>
                     </div>
                     <CardTitle className="mt-4 truncate text-lg md:text-xl" title={category.name}>{category.name}</CardTitle>
@@ -109,7 +137,7 @@ export default function CategoriesPage() {
                         </div>
                         <Progress value={learningPath.progress} className="h-2" />
                         <ul className="mt-2 space-y-1">
-                          {learningPath.milestones.map((ms: any) => (
+                          {learningPath.milestones.map((ms: { id: string; title: string; isCompleted: boolean }) => (
                             <li key={ms.id} className="flex items-center gap-2 text-xs">
                               <Checkbox checked={ms.isCompleted} disabled />
                               <span className={ms.isCompleted ? "line-through text-muted-foreground" : ""}>{ms.title}</span>

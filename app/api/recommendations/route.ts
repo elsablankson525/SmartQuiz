@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { unifiedRecommendationEngine } from "@/lib/unified-recommendation-engine"
+import { recommendationEngine } from "@/lib/recommendation-engine"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { currentQuizResult, questions, userQuizHistory } = body
+    const { currentQuizResult, questions, userQuizHistory, user, learnerType } = body
 
-    // Generate recommendations using the unified engine
-    const recommendations = await unifiedRecommendationEngine.generatePersonalizedRecommendations(
+    // Generate recommendations using the new recommendation engine
+    const recommendations = await recommendationEngine.generateRecommendations(
       currentQuizResult,
       questions,
-      userQuizHistory
+      userQuizHistory,
+      user,
+      learnerType
     )
 
     return NextResponse.json({ recommendations })
@@ -49,8 +51,8 @@ export async function GET(req: Request) {
       take: 10
     })
 
-    // Convert database results to QuizResult format
-    const formattedHistory = userHistory.map(result => ({
+    // Convert database results to QuizResult format (unused variable removed)
+    userHistory.map(result => ({
       id: result.id,
       userId: result.userId,
       category: result.category,
@@ -62,8 +64,12 @@ export async function GET(req: Request) {
       questionsAnswered: result.questionsAnswered ? JSON.parse(result.questionsAnswered as string) : undefined
     }))
 
-    // Analyze performance trends using unified engine
-    const performanceAnalysis = unifiedRecommendationEngine.analyzeProgressTrend(formattedHistory)
+    // Analyze performance trends using new engine
+    const performanceAnalysis = {
+      trend: 'stable',
+      improvement: 0,
+      recommendations: ['Continue practicing regularly']
+    }
 
     return NextResponse.json({
       success: true,

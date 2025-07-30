@@ -10,5 +10,13 @@ export function CustomSessionProvider({
   children: ReactNode;
   session?: Session | null;
 }) {
-  return <SessionProvider session={session}>{children}</SessionProvider>;
+  return (
+    <SessionProvider 
+      session={session} 
+      refetchInterval={5 * 60} // Refetch every 5 minutes
+      refetchOnWindowFocus={false}
+    >
+      {children}
+    </SessionProvider>
+  );
 } 

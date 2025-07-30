@@ -2,12 +2,29 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { GraduationCap, Search, BookOpen, Users, Clock, Star, ArrowRight } from "lucide-react"
+import { Search, BookOpen, Users, Clock, Star, ArrowRight } from "lucide-react"
+
+interface Subject {
+  id: string;
+  name: string;
+  description: string;
+  topics: string[];
+  difficulty: string;
+  color: string;
+  icon: string;
+  borderColor: string;
+  rating: number;
+  quizzes: number;
+  lessons: number;
+  resources: number;
+  learners: number;
+  avgTime: string;
+}
 
 function SubjectsSkeleton() {
   return (
@@ -29,12 +46,12 @@ function SubjectsSkeleton() {
 }
 
 export default function SubjectsPage() {
-  const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [loadingSubject, setLoadingSubject] = useState<string | null>(null)
-  const [subjects, setSubjects] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [loadingSubject, setLoadingSubject] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     async function fetchSubjects() {
@@ -47,8 +64,8 @@ export default function SubjectsPage() {
         if (!res.ok) throw new Error("Failed to fetch subjects")
         const data = await res.json()
         setSubjects(data.subjects)
-        console.log('Fetched subjects:', (data.subjects as any[]).map((s: any) => ({ id: s.id, name: s.name })))
-      } catch (err) {
+        console.log('Fetched subjects:', data.subjects.map((s: Subject) => ({ id: s.id, name: s.name })))
+      } catch {
         setError("Could not load subjects. Please try again later.")
       } finally {
         setLoading(false)
@@ -217,7 +234,7 @@ export default function SubjectsPage() {
 
         {/* CTA Section */}
         <section className="mt-16 text-center bg-muted/30 rounded-2xl p-8">
-          <h2 className="text-2xl font-bold mb-4">Can't find what you're looking for?</h2>
+          <h2 className="text-2xl font-bold mb-4">Can&apos;t find what you&apos;re looking for?</h2>
           <p className="text-muted-foreground mb-6">
             SmartQuiz is constantly expanding. Request new subjects or suggest improvements to existing ones.
           </p>

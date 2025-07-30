@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     const profile = {
       name: user.name,
       email: user.email,
-      joinDate: (user as any)?.createdAt ? (user as any).createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : '',
+      joinDate: user.createdAt ? user.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : '',
       totalScore: metrics.totalQuizzes * 10, // Example: 10 points per quiz
       quizzesTaken: metrics.totalQuizzes,
       averageScore: Math.round(metrics.averageScore),

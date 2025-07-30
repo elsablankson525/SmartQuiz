@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { recommendationEngine } from "@/lib/recommendation-engine"
+import { LeaderboardUpdater } from "@/lib/leaderboard-updater"
+import { Prisma } from "@prisma/client"
+import type { QuizResult, Question } from "@/lib/types"
 import { RuleBasedEngine, getFallbackRecommendations } from "@/lib/rule-based-engine"
-import type { QuizResult } from "@/lib/types"
 
 export async function POST(req: Request) {
   try {
@@ -72,8 +75,7 @@ export async function POST(req: Request) {
       category,
       difficulty,
       percentageScore,
-      performanceLevel,
-      questionsAnswered
+      performanceLevel
     )
 
     // Generate personalized learning resources
@@ -85,11 +87,65 @@ export async function POST(req: Request) {
       questionsAnswered
     )
 
+    // Generate comprehensive recommendations
+    const quizResult: QuizResult = {
+      id: result.id,
+      userId: result.userId,
+      category: result.category,
+      difficulty: result.difficulty,
+      score: result.score,
+      totalQuestions: result.totalQuestions,
+      timeSpent: result.timeSpent,
+      date: result.date,
+      questionsAnswered: questionsAnswered
+    };
+
+    const questions: Question[] = questionsAnswered?.map((qa: Record<string, unknown>, index: number) => ({
+      id: `question-${index}`,
+      text: qa.question as string || `Question ${index + 1}`,
+      category: category,
+      difficulty: difficulty,
+      topic: qa.topic as string || category,
+      options: qa.options as string[] || [],
+      correctAnswer: qa.correctAnswer as string || '',
+      explanation: qa.explanation as string || ''
+    })) || [];
+
+    const comprehensiveRecommendations = await recommendationEngine.generateRecommendations(
+      quizResult,
+      questions,
+      userHistory.map(h => ({
+        id: h.id,
+        userId: h.userId,
+        category: h.category,
+        difficulty: h.difficulty,
+        score: h.score,
+        totalQuestions: h.totalQuestions,
+        timeSpent: h.timeSpent,
+        date: h.date,
+        questionsAnswered: h.questionsAnswered ? JSON.parse(h.questionsAnswered as string) : undefined
+      })),
+      {
+        id: user.id,
+        name: user.name || '',
+        email: user.email || '',
+        image: user.image || undefined,
+        score: user.totalScore,
+        quizzesTaken: userHistory.length,
+        createdAt: user.createdAt,
+        learningPreferences: undefined
+      },
+      getLearnerType(percentageScore, performanceLevel)
+    );
+
     // Update user's total score
     await prisma.user.update({
       where: { id: user.id },
       data: { totalScore: user.totalScore + score }
     })
+
+    // Update leaderboard entries
+    await LeaderboardUpdater.updateUserLeaderboard(user.id, score, category)
 
     return NextResponse.json({ 
       success: true, 
@@ -97,6 +153,7 @@ export async function POST(req: Request) {
       personalizedRecommendations,
       personalizedStudyPlan,
       personalizedResources,
+      comprehensiveRecommendations,
       performanceMetrics: {
         percentageScore,
         performanceLevel,
@@ -121,10 +178,10 @@ function getPerformanceLevel(percentageScore: number): 'excellent' | 'good' | 'a
 
 // Generate personalized recommendations based on quiz performance
 async function generatePersonalizedRecommendations(
-  user: any,
-  currentQuiz: any,
-  userHistory: any[],
-  questionsAnswered: any,
+  user: Prisma.UserGetPayload<Record<string, never>>,
+  currentQuiz: Record<string, unknown>,
+  userHistory: Prisma.QuizResultGetPayload<Record<string, never>>[],
+  questionsAnswered: Record<string, unknown>[],
   percentageScore: number,
   performanceLevel: string
 ) {
@@ -145,9 +202,9 @@ async function generatePersonalizedRecommendations(
     // Use rule-based engine for personalized recommendations
     const recommendations = await RuleBasedEngine.generateRecommendations(
       formattedHistory,
-      currentQuiz.category,
+      currentQuiz.category as string,
       {
-        difficulty: currentQuiz.difficulty,
+        difficulty: currentQuiz.difficulty as string,
         timeAvailable: 10, // Default 10 hours per week
         goals: getGoalsBasedOnPerformance(percentageScore, performanceLevel)
       }
@@ -161,17 +218,17 @@ async function generatePersonalizedRecommendations(
         level: performanceLevel,
         strengths: getStrengthsFromQuestions(questionsAnswered),
         weaknesses: getWeaknessesFromQuestions(questionsAnswered),
-        nextSteps: getNextStepsBasedOnPerformance(percentageScore, performanceLevel, currentQuiz.difficulty),
-        timeAnalysis: analyzeTimePerformance(currentQuiz.timeSpent, currentQuiz.totalQuestions)
+        nextSteps: getNextStepsBasedOnPerformance(percentageScore, performanceLevel),
+        timeAnalysis: analyzeTimePerformance(currentQuiz.timeSpent as number, currentQuiz.totalQuestions as number)
       },
-      categorySpecificAdvice: getCategorySpecificAdvice(currentQuiz.category, percentageScore, performanceLevel)
+      categorySpecificAdvice: getCategorySpecificAdvice(currentQuiz.category as string, percentageScore, performanceLevel)
     }
 
     return enhancedRecommendations
   } catch (error) {
     console.error("Error generating personalized recommendations:", error)
     // Fallback to basic recommendations
-    return await getFallbackRecommendations([], currentQuiz.category)
+    return await getFallbackRecommendations([], currentQuiz.category as string)
   }
 }
 
@@ -180,15 +237,10 @@ async function generatePersonalizedStudyPlan(
   category: string,
   difficulty: string,
   percentageScore: number,
-  performanceLevel: string,
-  questionsAnswered: any
+  performanceLevel: string
 ) {
   try {
-    // Get existing study plans for the category
-    const existingPlans = await prisma.studyPlan.findMany({
-      where: { category },
-      orderBy: { week: 'asc' }
-    })
+
 
     // Determine learner type based on performance
     const learnerType = getLearnerType(percentageScore, performanceLevel)
@@ -200,13 +252,13 @@ async function generatePersonalizedStudyPlan(
     )
 
     // Enhance with performance-specific modifications
-    const enhancedPlan = ruleBasedPlan.map((week, index) => ({
+    const enhancedPlan = ruleBasedPlan.map((week: { focus: string; goals?: string[]; estimatedTime: number }, index: number) => ({
       ...week,
       focus: enhanceFocusBasedOnPerformance(week.focus, percentageScore, performanceLevel),
-      goals: enhanceGoalsBasedOnPerformance(week.goals, percentageScore, performanceLevel),
+      goals: enhanceGoalsBasedOnPerformance(week.goals || [], percentageScore, performanceLevel),
       priority: getWeekPriority(index, percentageScore, performanceLevel),
-      estimatedTime: getEstimatedTime(learnerType, week.focus),
-      difficultyAdjustment: getDifficultyAdjustment(percentageScore, difficulty)
+      estimatedTime: getEstimatedTime(learnerType),
+      difficultyAdjustment: getDifficultyAdjustment(percentageScore)
     }))
 
     return {
@@ -216,7 +268,7 @@ async function generatePersonalizedStudyPlan(
       category,
       difficulty,
       totalWeeks: enhancedPlan.length,
-      estimatedTotalTime: enhancedPlan.reduce((sum, week) => sum + week.estimatedTime, 0)
+      estimatedTotalTime: enhancedPlan.reduce((sum: number, week: { estimatedTime: number }) => sum + week.estimatedTime, 0)
     }
   } catch (error) {
     console.error("Error generating personalized study plan:", error)
@@ -247,7 +299,7 @@ async function generatePersonalizedResources(
   difficulty: string,
   percentageScore: number,
   performanceLevel: string,
-  questionsAnswered: any
+  questionsAnswered: Record<string, unknown>[]
 ) {
   try {
     // Get learning resources from database
@@ -314,43 +366,45 @@ function getGoalsBasedOnPerformance(percentageScore: number, performanceLevel: s
   }
 }
 
-function getStrengthsFromQuestions(questionsAnswered: any): string[] {
+function getStrengthsFromQuestions(questionsAnswered: Record<string, unknown>[]): string[] {
   if (!questionsAnswered) return []
   
-  const correctAnswers = questionsAnswered.filter((q: any) => q.isCorrect)
-  const topics = correctAnswers.map((q: any) => q.topic).filter(Boolean)
+  const correctAnswers = questionsAnswered.filter((q: Record<string, unknown>) => q.isCorrect)
+  const topics = correctAnswers.map((q: Record<string, unknown>) => q.topic as string).filter(Boolean)
   
   // Count topic frequency
-  const topicCount = topics.reduce((acc: any, topic: string) => {
+  const topicCounts = topics.reduce((acc: Record<string, number>, topic: string) => {
     acc[topic] = (acc[topic] || 0) + 1
     return acc
-  }, {})
+  }, {} as Record<string, number>)
   
-  return Object.entries(topicCount)
-    .sort(([, a], [, b]) => (b as number) - (a as number))
+  // Return top 3 strengths
+  return Object.entries(topicCounts)
+    .sort(([, a], [, b]) => b - a)
     .slice(0, 3)
     .map(([topic]) => topic)
 }
 
-function getWeaknessesFromQuestions(questionsAnswered: any): string[] {
+function getWeaknessesFromQuestions(questionsAnswered: Record<string, unknown>[]): string[] {
   if (!questionsAnswered) return []
   
-  const incorrectAnswers = questionsAnswered.filter((q: any) => !q.isCorrect)
-  const topics = incorrectAnswers.map((q: any) => q.topic).filter(Boolean)
+  const incorrectAnswers = questionsAnswered.filter((q: Record<string, unknown>) => !q.isCorrect)
+  const topics = incorrectAnswers.map((q: Record<string, unknown>) => q.topic as string).filter(Boolean)
   
   // Count topic frequency
-  const topicCount = topics.reduce((acc: any, topic: string) => {
+  const topicCounts = topics.reduce((acc: Record<string, number>, topic: string) => {
     acc[topic] = (acc[topic] || 0) + 1
     return acc
-  }, {})
+  }, {} as Record<string, number>)
   
-  return Object.entries(topicCount)
-    .sort(([, a], [, b]) => (b as number) - (a as number))
+  // Return top 3 weaknesses
+  return Object.entries(topicCounts)
+    .sort(([, a], [, b]) => b - a)
     .slice(0, 3)
     .map(([topic]) => topic)
 }
 
-function getNextStepsBasedOnPerformance(percentageScore: number, performanceLevel: string, currentDifficulty: string): string[] {
+function getNextStepsBasedOnPerformance(percentageScore: number, performanceLevel: string): string[] {
   if (performanceLevel === 'excellent') {
     return [
       'Try advanced difficulty quizzes',
@@ -378,7 +432,7 @@ function getNextStepsBasedOnPerformance(percentageScore: number, performanceLeve
   }
 }
 
-function analyzeTimePerformance(timeSpent: number, totalQuestions: number): any {
+function analyzeTimePerformance(timeSpent: number, totalQuestions: number): Record<string, unknown> {
   const avgTimePerQuestion = timeSpent / totalQuestions
   const timeAnalysis = {
     avgTimePerQuestion,
@@ -441,58 +495,60 @@ function getWeekPriority(index: number, percentageScore: number, performanceLeve
   return 'medium'
 }
 
-function getEstimatedTime(learnerType: string, focus: string): number {
+function getEstimatedTime(learnerType: string): number {
   const baseTime = 5 // hours
   if (learnerType === 'slow') return baseTime * 1.5
   if (learnerType === 'fast') return baseTime * 0.7
   return baseTime
 }
 
-function getDifficultyAdjustment(percentageScore: number, currentDifficulty: string): string {
+function getDifficultyAdjustment(percentageScore: number): string {
   if (percentageScore >= 90) return 'increase'
   if (percentageScore < 50) return 'decrease'
   return 'maintain'
 }
 
-function calculateResourceRelevance(resource: any, weakAreas: string[], performanceLevel: string): number {
+function calculateResourceRelevance(resource: Record<string, unknown>, weakAreas: string[], performanceLevel: string): number {
   let score = 0
   
-  // Base score from rating
-  score += (resource.rating || 0) * 10
+  // Base score for resource type
+  if (resource.type === 'video') score += 20
+  else if (resource.type === 'article') score += 15
+  else if (resource.type === 'practice') score += 25
   
   // Bonus for matching weak areas
-  if (weakAreas.some(area => 
-    resource.title.toLowerCase().includes(area.toLowerCase()) ||
-    resource.topic.toLowerCase().includes(area.toLowerCase())
+  if (weakAreas.some((area: string) => 
+    (resource.title as string).toLowerCase().includes(area.toLowerCase()) ||
+    (resource.topic as string).toLowerCase().includes(area.toLowerCase())
   )) {
     score += 50
   }
   
   // Bonus for appropriate difficulty
-  if (performanceLevel === 'needs_improvement' && resource.difficulty === 'beginner') {
+  if (performanceLevel === 'needs_improvement' && (resource.difficulty as string) === 'beginner') {
     score += 30
-  } else if (performanceLevel === 'excellent' && resource.difficulty === 'advanced') {
+  } else if (performanceLevel === 'excellent' && (resource.difficulty as string) === 'advanced') {
     score += 30
   }
   
   return score
 }
 
-function getRecommendationReason(resource: any, performanceLevel: string, weakAreas: string[]): string {
-  if (weakAreas.some(area => 
-    resource.title.toLowerCase().includes(area.toLowerCase()) ||
-    resource.topic.toLowerCase().includes(area.toLowerCase())
+function getRecommendationReason(resource: Record<string, unknown>, performanceLevel: string, weakAreas: string[]): string {
+  if (weakAreas.some((area: string) => 
+    (resource.title as string).toLowerCase().includes(area.toLowerCase()) ||
+    (resource.topic as string).toLowerCase().includes(area.toLowerCase())
   )) {
     return 'Addresses your weak areas'
   }
   
-  if (performanceLevel === 'needs_improvement' && resource.difficulty === 'beginner') {
+  if (performanceLevel === 'needs_improvement' && (resource.difficulty as string) === 'beginner') {
     return 'Perfect for building fundamentals'
   }
   
-  if (performanceLevel === 'excellent' && resource.difficulty === 'advanced') {
+  if (performanceLevel === 'excellent' && (resource.difficulty as string) === 'advanced') {
     return 'Challenges you to advance further'
   }
   
-  return 'Well-rated resource for your level'
+  return 'Relevant to your current level'
 } 

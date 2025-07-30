@@ -3,17 +3,26 @@ import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
-import type { Session, User } from "next-auth";
-import type { AdapterUser } from "next-auth/adapters";
-import type { JWT } from "next-auth/jwt";
-import type { NextAuthOptions } from "next-auth";
+import { prisma } from "../../../../lib/prisma"
+import * as bcrypt from "bcryptjs"
+import { Session } from "next-auth"
+import { JWT } from "next-auth/jwt"
 
-export const authOptions: NextAuthOptions = {
+// Extend the Session interface to include user ID
+interface ExtendedSession extends Session {
+  user: {
+    id?: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  } & Session['user'];
+}
+
+export const authOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: "jwt" as const,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   providers: [
     GoogleProvider({
@@ -27,40 +36,57 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "your@email.com" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password required")
+          return null
         }
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } })
+        
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email }
+        })
+        
         if (!user || !user.hashedPassword) {
-          throw new Error("No user found or password not set")
+          return null
         }
+        
         const isValid = await bcrypt.compare(credentials.password, user.hashedPassword)
+        
         if (!isValid) {
-          throw new Error("Invalid password")
+          return null
         }
-        return { id: user.id, name: user.name, email: user.email, image: user.image }
+        
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        }
       },
     }),
   ],
-  secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: '/login',
+    signOut: '/',
+    error: '/login',
+  },
   callbacks: {
-    async jwt({ token, user }: { token: JWT; user?: User | AdapterUser }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
     async session({ session, token }: { session: Session; token: JWT }) {
-      if (session.user) {
-        (session.user as typeof session.user & { id?: string }).id = token.id as string;
+      if (token && session.user) {
+        (session.user as ExtendedSession['user']).id = token.sub!
       }
-      return session;
+      return session
+    },
+    async jwt({ token, user }: { token: JWT; user: { id: string } | undefined }) {
+      if (user) {
+        token.sub = user.id
+      }
+      return token
     },
   },
+  secret: process.env.NEXTAUTH_SECRET,
 }
 
 const handler = NextAuth(authOptions)

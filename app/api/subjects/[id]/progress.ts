@@ -3,34 +3,41 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
+interface SessionUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
-  if (!session || !session.user?.id) {
+  if (!session || !(session.user as SessionUser)?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const userId = (session.user as any).id
+  const userId = (session.user as SessionUser).id
   const { id: subjectId } = await params
-  // @ts-ignore
+  
   const progress = await prisma.userLessonProgress.findMany({
     where: { userId, subjectId },
-    select: { lessonId: true },
+    include: { lesson: true }
   })
-  return NextResponse.json({ completedLessonIds: progress.map((p: { lessonId: string }) => p.lessonId) })
+  return NextResponse.json({ progress })
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
-  if (!session || !session.user?.id) {
+  if (!session || !(session.user as SessionUser)?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-  const userId = (session.user as any).id
+  const userId = (session.user as SessionUser).id
   const { id: subjectId } = await params
-  const { lessonId } = await req.json()
-  // @ts-ignore
+  const { lessonId, completed } = await req.json()
+  
   const progress = await prisma.userLessonProgress.upsert({
     where: { userId_lessonId: { userId, lessonId } },
-    update: {},
-    create: { userId, subjectId, lessonId },
+    update: { completedAt: completed ? new Date() : undefined },
+    create: { userId, lessonId, subjectId, completedAt: completed ? new Date() : undefined }
   })
-  return NextResponse.json({ success: true, progress })
+  return NextResponse.json({ progress })
 } 

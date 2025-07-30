@@ -1,156 +1,219 @@
-# ByteBattle Quiz App
+# SmartQuiz - AI-Powered Learning Platform
 
-A comprehensive quiz application built with Next.js, Prisma, and PostgreSQL.
+A modern, intelligent quiz application built with Next.js that provides personalized learning experiences through adaptive quizzes, AI-powered recommendations, and comprehensive analytics.
 
-## 🚀 Quick Start for Lecturers/Reviewers
+## 🚀 Features
 
-### Option 1: Use the Live Demo (Recommended)
-The application is deployed and ready to use at: [Your Vercel URL here]
+### Core Learning Features
+- **AI-Powered Learning**: Personalized recommendations based on learning patterns and performance
+- **Adaptive Quizzes**: Dynamic difficulty adjustment to match skill level and learning pace
+- **Progress Tracking**: Comprehensive analytics and insights to monitor learning journey
+- **Community Learning**: Connect with fellow learners and compete on leaderboards
 
-### Option 2: Local Setup with Cloud Database
+### Advanced Features
+- **Multi-Subject Support**: Computer Science, Mathematics, Science, History, Literature, Art
+- **Learning Paths**: Structured learning journeys with milestones and achievements
+- **Certificate System**: Earn certificates upon completing subjects and lessons
+- **Study Plans**: Personalized study schedules and recommendations
+- **Continuous Learning**: AI-driven content recommendations
+- **Analytics Dashboard**: Detailed performance insights and learning analytics
 
-1. **Clone the repository**
-   ```bash
-   git clone [your-repo-url]
-   cd bytebattle-quiz-app
-   ```
-
-2. **Set up Cloud Database (Supabase - Free)**
-   - Go to [supabase.com](https://supabase.com)
-   - Sign up for a free account
-   - Create a new project
-   - Go to Settings > Database
-   - Copy the connection string (it looks like: `postgresql://postgres:[password]@[host]:5432/postgres`)
-
-3. **Configure Environment Variables**
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Update `.env.local` with your Supabase database URL:
-   ```
-   DATABASE_URL="your-supabase-connection-string"
-   NEXTAUTH_SECRET="your-secret-key"
-   GOOGLE_CLIENT_ID="your-google-client-id"
-   GOOGLE_CLIENT_SECRET="your-google-client-secret"
-   GITHUB_CLIENT_ID="your-github-client-id"
-   GITHUB_CLIENT_SECRET="your-github-client-secret"
-   ```
-
-4. **Install dependencies**
-   ```bash
-   npm install
-   # or
-   pnpm install
-   ```
-
-5. **Set up the database**
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   npx prisma db seed
-   ```
-
-6. **Run the development server**
-   ```bash
-   npm run dev
-   # or
-   pnpm dev
-   ```
-
-7. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## 🗄️ Database Setup
-
-### For Development
-- **Local PostgreSQL**: Use Docker or install PostgreSQL locally
-- **Cloud Database**: Use Supabase, Neon, or Railway (recommended for sharing)
-
-### For Production/Deployment
-- **Vercel**: Use Vercel Postgres or connect to Supabase
-- **Railway**: Use Railway's PostgreSQL service
-- **Supabase**: Use Supabase's hosted PostgreSQL
-
-## 🔐 Authentication Setup
-
-The app uses NextAuth.js with multiple providers:
-
-1. **Google OAuth**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Create a new project
-   - Enable Google+ API
-   - Create OAuth 2.0 credentials
-   - Add authorized redirect URIs: `http://localhost:3000/api/auth/callback/google`
-
-2. **GitHub OAuth**:
-   - Go to [GitHub Developer Settings](https://github.com/settings/developers)
-   - Create a new OAuth App
-   - Add callback URL: `http://localhost:3000/api/auth/callback/github`
-
-## 📊 Features
-
-- **Quiz System**: Multiple choice questions with explanations
-- **Learning Paths**: Structured learning journeys
-- **Progress Tracking**: User progress and achievements
-- **Leaderboard**: Competitive scoring system
-- **Analytics**: Performance insights and recommendations
-- **Responsive Design**: Works on all devices
+### Technical Features
+- **Real-time Analytics**: Live performance tracking and insights
+- **ML Predictions**: Machine learning models for performance prediction
+- **Responsive Design**: Mobile-first design with modern UI components
+- **Authentication**: Secure user authentication with NextAuth.js
+- **Database**: PostgreSQL with Prisma ORM for robust data management
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: PostgreSQL
-- **Authentication**: NextAuth.js
-- **Deployment**: Vercel (recommended)
+### Frontend
+- **Next.js 15** - React framework with App Router
+- **TypeScript** - Type-safe JavaScript
+- **Tailwind CSS** - Utility-first CSS framework
+- **Radix UI** - Accessible component primitives
+- **Lucide React** - Beautiful icons
+- **React Hook Form** - Form handling with validation
+- **Zod** - Schema validation
 
-## 📝 Environment Variables
+### Backend & Database
+- **Next.js API Routes** - Server-side API endpoints
+- **Prisma** - Database ORM
+- **PostgreSQL** - Primary database
+- **NextAuth.js** - Authentication solution
 
-Create a `.env.local` file with the following variables:
+### AI & ML
+- **OpenAI API** - AI-powered recommendations
+- **Google Generative AI** - Content generation
+- **ML Matrix** - Machine learning computations
+- **Regression** - Statistical analysis
 
-```env
-DATABASE_URL="your-database-connection-string"
-NEXTAUTH_SECRET="your-nextauth-secret"
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GITHUB_CLIENT_ID="your-github-client-id"
-GITHUB_CLIENT_SECRET="your-github-client-secret"
+### Additional Libraries
+- **Recharts** - Data visualization
+- **React Player** - Video content support
+- **Date-fns** - Date manipulation
+- **JSPDF** - PDF generation
+- **Puppeteer** - Web scraping capabilities
+
+## 📋 Prerequisites
+
+Before running this project, make sure you have:
+
+- **Node.js** (v18 or higher)
+- **npm** or **yarn** package manager
+- **PostgreSQL** database
+- **Git**
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd bytebattle-quiz-app
 ```
 
-## 🚀 Deployment
+### 2. Install Dependencies
 
-### Vercel (Recommended)
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy!
+```bash
+npm install
+# or
+yarn install
+```
 
-### Other Platforms
-- **Railway**: Supports both app and database deployment
-- **Netlify**: Frontend deployment (requires separate database)
-- **Heroku**: Full-stack deployment
+### 3. Environment Setup
 
-## 📚 Database Schema
+Create a `.env.local` file in the root directory with the following variables:
 
-The application includes the following main models:
-- Users and Authentication
-- Categories and Subjects
-- Quiz Questions and Results
-- Learning Paths and Progress
-- Achievements and Leaderboard
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/quiz_app"
+
+# Authentication
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+
+# AI Services
+OPENAI_API_KEY="your-openai-api-key"
+GOOGLE_GENERATIVE_AI_API_KEY="your-google-ai-key"
+
+# Email (for password reset, etc.)
+EMAIL_SERVER_HOST="smtp.gmail.com"
+EMAIL_SERVER_PORT=587
+EMAIL_SERVER_USER="your-email@gmail.com"
+EMAIL_SERVER_PASSWORD="your-app-password"
+
+# YouTube API (for video content)
+YOUTUBE_API_KEY="your-youtube-api-key"
+```
+
+### 4. Database Setup
+
+```bash
+# Generate Prisma client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev
+
+# Seed the database with initial data
+npm run seed
+```
+
+### 5. Start Development Server
+
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+## 📁 Project Structure
+
+```
+bytebattle-quiz-app/
+├── app/                    # Next.js App Router pages
+│   ├── api/               # API routes
+│   ├── analytics/         # Analytics dashboard
+│   ├── dashboard/         # User dashboard
+│   ├── quiz/             # Quiz functionality
+│   ├── subjects/         # Subject pages
+│   └── ...
+├── components/            # Reusable React components
+│   ├── ui/               # UI components (Radix UI)
+│   └── ...
+├── lib/                  # Utility functions and services
+│   ├── prisma.ts         # Database client
+│   ├── auth.ts           # Authentication utilities
+│   ├── ml-models.ts      # ML model implementations
+│   └── ...
+├── prisma/               # Database schema and migrations
+│   ├── schema.prisma     # Database schema
+│   └── migrations/       # Database migrations
+└── public/               # Static assets
+```
+
+## 🔧 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run seed` - Seed database with initial data
+
+## 🎯 Key Features Explained
+
+### AI-Powered Recommendations
+The platform uses machine learning models to analyze user performance and provide personalized content recommendations. This includes:
+- Quiz difficulty adjustment
+- Subject recommendations
+- Study plan optimization
+- Content relevance scoring
+
+### Adaptive Learning System
+- Tracks user progress across subjects
+- Adjusts quiz difficulty based on performance
+- Provides targeted feedback and hints
+- Generates personalized learning paths
+
+### Analytics & Insights
+- Performance tracking across subjects
+- Learning pattern analysis
+- Progress visualization
+- Achievement tracking
+- Leaderboard rankings
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
+## 📝 License
 
-This project is for educational purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+If you encounter any issues or have questions:
+
+1. Check the [Issues](https://github.com/your-repo/issues) page
+2. Create a new issue with detailed information
+3. Contact the development team
+
+## 🔮 Roadmap
+
+- [ ] Mobile app development
+- [ ] Advanced AI tutoring features
+- [ ] Social learning features
+- [ ] Integration with external learning platforms
+- [ ] Advanced analytics and reporting
+- [ ] Multi-language support
 
 ---
 
-**Note**: For lecturers and reviewers, the easiest way to access the application is through the deployed version. If you need to run it locally, follow the cloud database setup instructions above. 
+**Built with ❤️ using Next.js, TypeScript, and modern web technologies** 

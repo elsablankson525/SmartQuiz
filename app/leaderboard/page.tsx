@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { GraduationCap, Trophy, Medal, Award, Users, Crown, Star, Zap, Target } from "lucide-react"
+import { Trophy, Medal, Award, Users, Crown, Star, Zap, Target } from "lucide-react"
 import { useSession } from "next-auth/react"
 
 const timeframes = ["weekly", "monthly", "all-time"]
@@ -52,13 +51,16 @@ function getCategoryChampions(players: LeaderboardPlayer[]): { category: string;
   }));
 }
 
+interface LeaderboardData {
+  [timeframe: string]: LeaderboardPlayer[];
+}
+
 export default function LeaderboardPage() {
   const { data: session } = useSession();
   const router = useRouter()
-  const [selectedTimeframe, setSelectedTimeframe] = useState("weekly")
-  const [showMore, setShowMore] = useState(false)
+  const [selectedTimeframe, setSelectedTimeframe] = useState("all-time")
   const [isLoading, setIsLoading] = useState(false)
-  const [leaderboardData, setLeaderboardData] = useState<any>({})
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,19 +80,23 @@ export default function LeaderboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/leaderboard?timeframe=${selectedTimeframe}&limit=${PAGE_SIZE}&offset=${offset}`);
+        const params = new URLSearchParams();
+        params.append("timeframe", selectedTimeframe);
+        params.append("offset", offset.toString());
+        params.append("limit", PAGE_SIZE.toString());
+        const res = await fetch(`/api/leaderboard?${params.toString()}`);
         if (!res.ok) throw new Error("Failed to fetch leaderboard");
         const data = await res.json();
         if (offset === 0) {
           setLeaderboardData({ [selectedTimeframe]: data.leaderboard || [] });
         } else {
-          setLeaderboardData((prev: any) => ({
+          setLeaderboardData((prev: LeaderboardData) => ({
             ...prev,
             [selectedTimeframe]: [...(prev[selectedTimeframe] || []), ...(data.leaderboard || [])],
           }));
         }
         setHasMore((data.leaderboard || []).length === PAGE_SIZE);
-      } catch (err) {
+      } catch {
         setError("Could not load leaderboard. Please try again later.");
       } finally {
         setLoading(false);

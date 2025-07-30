@@ -49,7 +49,7 @@ export async function POST(
   try {
     const { id } = await context.params
     const body = await request.json()
-    const { title, description, content, type, duration, order } = body
+    const { title, content, type, duration, order } = body
 
     if (!title || !content || !type) {
       return NextResponse.json({ 

@@ -30,7 +30,7 @@ export async function GET() {
       }
     }
     return NextResponse.json({ grouped: result });
-  } catch (error) {
+      } catch {
     return NextResponse.json({ error: "Failed to group learning paths" }, { status: 500 });
   }
 } 

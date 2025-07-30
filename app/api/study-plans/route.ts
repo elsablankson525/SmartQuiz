@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { prisma } from "../../../lib/prisma"
+import { Prisma } from "@prisma/client"
 import { RuleBasedEngine } from "@/lib/rule-based-engine"
 
 export async function GET(request: Request) {
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     }
 
     // Build the query - only use category since StudyPlan doesn't have difficulty field
-    const whereClause: any = {
+    const whereClause: Prisma.StudyPlanWhereInput = {
       category: dbCategory
     }
 
@@ -129,7 +130,7 @@ async function generatePersonalizedStudyPlan(
       category,
       difficulty: difficulty || "adaptive",
       totalWeeks: personalizedPlan.length,
-      estimatedTotalTime: personalizedPlan.reduce((sum, week) => sum + week.estimatedTime, 0)
+      estimatedTotalTime: personalizedPlan.reduce((sum: number, week: { estimatedTime: number }) => sum + week.estimatedTime, 0)
     })
 
   } catch (error) {
@@ -142,7 +143,7 @@ async function generatePersonalizedStudyPlan(
 }
 
 // Calculate performance metrics from quiz history
-function calculatePerformanceMetrics(quizHistory: any[]) {
+function calculatePerformanceMetrics(quizHistory: Prisma.QuizResultGetPayload<Record<string, never>>[]) {
   if (quizHistory.length === 0) {
     return {
       averageScore: 0,
@@ -190,7 +191,7 @@ function calculatePerformanceMetrics(quizHistory: any[]) {
 }
 
 // Determine learner type based on performance
-function determineLearnerType(performanceMetrics: any, performanceLevel: string | null): 'slow' | 'inBetween' | 'fast' {
+function determineLearnerType(performanceMetrics: Record<string, unknown>, performanceLevel: string | null): 'slow' | 'inBetween' | 'fast' {
   if (performanceLevel) {
     if (performanceLevel === 'excellent') return 'fast'
     if (performanceLevel === 'needs_improvement') return 'slow'
@@ -198,9 +199,9 @@ function determineLearnerType(performanceMetrics: any, performanceLevel: string 
   }
 
   // Determine based on performance metrics
-  if (performanceMetrics.averageScore >= 85 && performanceMetrics.timeEfficiency === 'excellent') {
+  if ((performanceMetrics.averageScore as number) >= 85 && performanceMetrics.timeEfficiency === 'excellent') {
     return 'fast'
-  } else if (performanceMetrics.averageScore < 60 || performanceMetrics.timeEfficiency === 'needs_improvement') {
+  } else if ((performanceMetrics.averageScore as number) < 60 || performanceMetrics.timeEfficiency === 'needs_improvement') {
     return 'slow'
   }
   return 'inBetween'
@@ -225,11 +226,11 @@ async function identifyWeakAreas(userId: string, category: string): Promise<stri
     for (const quiz of recentQuizzes) {
       if (quiz.questionsAnswered) {
         const questions = JSON.parse(quiz.questionsAnswered as string)
-        const incorrectQuestions = questions.filter((q: any) => !q.isCorrect)
+        const incorrectQuestions = questions.filter((q: Record<string, unknown>) => !(q.isCorrect as boolean))
         
-        incorrectQuestions.forEach((q: any) => {
-          if (q.topic && !weakAreas.includes(q.topic)) {
-            weakAreas.push(q.topic)
+        incorrectQuestions.forEach((q: Record<string, unknown>) => {
+          if (q.topic && !weakAreas.includes(q.topic as string)) {
+            weakAreas.push(q.topic as string)
           }
         })
       }
@@ -247,7 +248,7 @@ async function createPersonalizedStudyPlan(
   category: string,
   difficulty: string | null,
   learnerType: 'slow' | 'inBetween' | 'fast',
-  performanceMetrics: any,
+  performanceMetrics: Record<string, unknown>,
   weakAreas: string[]
 ) {
   // Get base study plan from rule-based engine
@@ -257,23 +258,25 @@ async function createPersonalizedStudyPlan(
   )
 
   // Enhance plan with performance-specific modifications
-  const enhancedPlan = basePlan.map((week, index) => {
+  const enhancedPlan = basePlan.map((week: { focus: string; goals?: string[]; resources: string[]; activities?: string[]; estimatedHours?: number; milestones?: string[] }, index: number) => {
     const enhancedWeek = {
       ...week,
       priority: getWeekPriority(index, performanceMetrics),
       estimatedTime: getEstimatedTime(learnerType, week.focus),
       difficultyAdjustment: getDifficultyAdjustment(performanceMetrics, difficulty),
       focus: enhanceFocusWithWeakAreas(week.focus, weakAreas),
-      goals: enhanceGoalsWithPerformance(week.goals, performanceMetrics),
+      goals: enhanceGoalsWithPerformance(week.goals || [], performanceMetrics),
       resources: enhanceResourcesWithWeakAreas(week.resources, weakAreas),
-      quizTopics: enhanceQuizTopicsWithWeakAreas(week.quizTopics, weakAreas)
+      activities: week.activities || [],
+      estimatedHours: week.estimatedHours || 5,
+      milestones: week.milestones || []
     }
 
     return enhancedWeek
   })
 
   // Add additional weeks for weak areas if needed
-  if (weakAreas.length > 0 && performanceMetrics.averageScore < 70) {
+  if (weakAreas.length > 0 && (performanceMetrics.averageScore as number) < 70) {
     const weakAreaWeeks = createWeakAreaFocusWeeks(weakAreas, category)
     enhancedPlan.push(...weakAreaWeeks)
   }
@@ -282,21 +285,21 @@ async function createPersonalizedStudyPlan(
 }
 
 // Helper functions for personalization
-function getWeekPriority(index: number, performanceMetrics: any): 'high' | 'medium' | 'low' {
+function getWeekPriority(index: number, performanceMetrics: Record<string, unknown>): 'high' | 'medium' | 'low' {
   if (index === 0) return 'high' // First week is always high priority
   
   if (performanceMetrics.recentTrend === 'declining') {
     return index <= 2 ? 'high' : 'medium'
   }
   
-  if (performanceMetrics.averageScore < 60) {
+  if ((performanceMetrics.averageScore as number) < 60) {
     return index <= 3 ? 'high' : 'medium'
   }
   
   return 'medium'
 }
 
-function getEstimatedTime(learnerType: string, focus: string): number {
+function getEstimatedTime(learnerType: string, _: string): number {
   const baseTime = 5 // hours per week
   
   if (learnerType === 'slow') {
@@ -308,10 +311,10 @@ function getEstimatedTime(learnerType: string, focus: string): number {
   return baseTime
 }
 
-function getDifficultyAdjustment(performanceMetrics: any, difficulty: string | null): string {
-  if (performanceMetrics.averageScore >= 85) {
+function getDifficultyAdjustment(performanceMetrics: Record<string, unknown>, _: string | null): string {
+  if ((performanceMetrics.averageScore as number) >= 85) {
     return 'increase'
-  } else if (performanceMetrics.averageScore < 50) {
+  } else if ((performanceMetrics.averageScore as number) < 50) {
     return 'decrease'
   }
   return 'maintain'
@@ -324,10 +327,10 @@ function enhanceFocusWithWeakAreas(focus: string, weakAreas: string[]): string {
   return `${focus} (Focus on: ${weakAreaFocus})`
 }
 
-function enhanceGoalsWithPerformance(goals: string[], performanceMetrics: any): string[] {
+function enhanceGoalsWithPerformance(goals: string[], performanceMetrics: Record<string, unknown>): string[] {
   const enhancedGoals = [...goals]
   
-  if (performanceMetrics.averageScore < 60) {
+  if ((performanceMetrics.averageScore as number) < 60) {
     enhancedGoals.push('Build confidence with fundamental concepts')
   }
   
@@ -348,17 +351,19 @@ function enhanceResourcesWithWeakAreas(resources: string[], weakAreas: string[])
   return [...resources, ...weakAreaResources]
 }
 
-function enhanceQuizTopicsWithWeakAreas(quizTopics: string[], weakAreas: string[]): string[] {
-  // Prioritize weak areas in quiz topics
-  return [...weakAreas, ...quizTopics.filter(topic => !weakAreas.includes(topic))]
-}
+// function enhanceQuizTopicsWithWeakAreas(_quizTopics: string[], weakAreas: string[]): string[] {
+//   // Prioritize weak areas in quiz topics
+//   return [...weakAreas, ..._quizTopics.filter(topic => !weakAreas.includes(topic))]
+// }
 
-function createWeakAreaFocusWeeks(weakAreas: string[], category: string) {
+function createWeakAreaFocusWeeks(weakAreas: string[], _: string) {
   return weakAreas.map((area, index) => ({
     week: 100 + index, // Use high numbers to indicate additional weeks
     focus: `Focus on ${area}`,
     resources: [`${area}-comprehensive-resource`, `${area}-practice-exercises`],
-    quizTopics: [area],
+    activities: [`${area} practice`, `${area} review`],
+    estimatedHours: 8,
+    milestones: [`Complete ${area} assessment`, `Master ${area} fundamentals`],
     goals: [`Master ${area} concepts`, `Improve ${area} problem-solving skills`],
     priority: 'high' as const,
     estimatedTime: 8,
