@@ -3,10 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // Fetch all learning paths with milestones
-    const paths = await prisma.learningPath.findMany({
-      include: { milestones: true },
-    });
+    // Fetch all learning paths
+    const paths = await prisma.learningPath.findMany();
 
     // Group by category and difficulty, collect topics
     const grouped: Record<string, Record<string, Set<string>>> = {};
@@ -15,11 +13,8 @@ export async function GET() {
       const difficulty = path.difficulty;
       if (!grouped[category]) grouped[category] = {};
       if (!grouped[category][difficulty]) grouped[category][difficulty] = new Set();
-      for (const milestone of path.milestones) {
-        for (const topic of milestone.quizTopics) {
-          grouped[category][difficulty].add(topic);
-        }
-      }
+      // Add the category as a topic since milestones don't exist in DB
+      grouped[category][difficulty].add(path.category);
     }
     // Convert sets to arrays for JSON serialization
     const result: Record<string, Record<string, string[]>> = {};

@@ -33,12 +33,14 @@ export interface User {
 export interface QuizResult {
   id: string
   userId: string
-  category: string
-  difficulty: string
+  quizId: string
   score: number
   totalQuestions: number
-  timeSpent: number
+  timeSpent?: number
   date: Date
+  // These fields are now accessed through the related Quiz
+  category?: string // From Quiz.category
+  difficulty?: string // From Quiz.difficulty
   questionsAnswered?: {
     question: string
     userAnswer: string
@@ -55,17 +57,10 @@ export interface LearningPath {
   category: string
   difficulty: string
   duration?: string
-  modules?: number
-  enrolled?: number
-  rating?: number
   progress?: number
-  color?: string
-  icon?: string
-  skills: string[]
-  instructor?: string
-  isPopular?: boolean
   createdAt: Date
   updatedAt: Date
+  skills: string[]
   milestones: Milestone[]
 }
 
@@ -75,12 +70,10 @@ export interface LearningPath {
 export interface LearningResource {
   id: string
   title: string
-  type: 'video' | 'article' | 'course' | 'practice' | 'book' | 'interactive'
+  type: string
   url: string
   difficulty: string
-  relevanceScore: number
-  estimatedTime: number // minutes
-  description: string
+  description?: string
   tags: string[]
   category: string
   topic: string
@@ -91,12 +84,15 @@ export interface LearningResource {
   language?: string
   isFree?: boolean
   certification?: boolean
-  thumbnail?: string
-  channelTitle?: string
-  viewCount?: number
+  // Additional fields for enhanced functionality (not in database)
+  relevanceScore?: number
+  estimatedTime?: number
   aiReasoning?: string
   learningOutcomes?: string[]
   personalizedTips?: string
+  thumbnail?: string
+  channelTitle?: string
+  viewCount?: number
 }
 
 export interface StudyPlanItem {

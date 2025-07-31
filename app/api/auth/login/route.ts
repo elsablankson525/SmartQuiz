@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       where: { email: email.toLowerCase() }
     })
 
-    if (!user || !user.hashedPassword) {
+    if (!user || !user.password) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.hashedPassword)
+    const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
       return NextResponse.json(
         { error: 'Invalid email or password' },

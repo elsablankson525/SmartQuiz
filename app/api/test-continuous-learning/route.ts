@@ -14,9 +14,8 @@ export async function GET(_request: NextRequest) {
       quizResult: {
         id: 'test-quiz',
         userId: 'test-user',
+        quizId: 'test-quiz-id',
         score: 85,
-        category: 'Computer Science',
-        difficulty: 'medium',
         totalQuestions: 10,
         timeSpent: 1200,
         date: new Date(),

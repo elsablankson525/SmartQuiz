@@ -45,7 +45,7 @@ interface RecommendationsData {
 export default function RecommendationsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [, setRecommendations] = useState<RecommendationsData | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +66,10 @@ export default function RecommendationsPage() {
       
       try {
         const response = await fetch(`/api/recommendations?userId=${encodeURIComponent(session.user.email)}`);
-        if (!response.ok) throw new Error("Failed to fetch recommendations");
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}: Failed to fetch recommendations`);
+        }
         
         const data = await response.json();
         setRecommendations(data);
@@ -201,49 +204,33 @@ export default function RecommendationsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  {
-                    title: "JavaScript Fundamentals",
-                    difficulty: "Intermediate",
-                    estimatedTime: "15 min",
-                    score: "85%",
-                    category: "Programming"
-                  },
-                  {
-                    title: "React Hooks Deep Dive",
-                    difficulty: "Advanced",
-                    estimatedTime: "20 min",
-                    score: "78%",
-                    category: "Web Development"
-                  },
-                  {
-                    title: "Data Structures & Algorithms",
-                    difficulty: "Intermediate",
-                    estimatedTime: "25 min",
-                    score: "92%",
-                    category: "Computer Science"
-                  }
-                ].map((quiz, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                {recommendations?.recommendations?.nextQuizSuggestion ? (
+                  <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
                     <div className="flex-1">
-                      <h3 className="font-medium">{quiz.title}</h3>
+                      <h3 className="font-medium">{recommendations.recommendations.nextQuizSuggestion.category}</h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">{quiz.category}</Badge>
-                        <Badge variant="secondary" className="text-xs">{quiz.difficulty}</Badge>
-                        <span className="text-xs text-muted-foreground">• {quiz.estimatedTime}</span>
+                        <Badge variant="outline" className="text-xs">{recommendations.recommendations.nextQuizSuggestion.category}</Badge>
+                        <Badge variant="secondary" className="text-xs">{recommendations.recommendations.nextQuizSuggestion.difficulty}</Badge>
+                        <span className="text-xs text-muted-foreground">• Confidence: {Math.round(recommendations.recommendations.nextQuizSuggestion.confidence * 100)}%</span>
                       </div>
+                      <p className="text-sm text-muted-foreground mt-2">{recommendations.recommendations.nextQuizSuggestion.reason}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
-                        <p className="text-sm font-medium">{quiz.score}</p>
-                        <p className="text-xs text-muted-foreground">Predicted</p>
+                        <p className="text-sm font-medium">{Math.round(recommendations.recommendations.nextQuizSuggestion.confidence * 100)}%</p>
+                        <p className="text-xs text-muted-foreground">Confidence</p>
                       </div>
                       <Button size="sm">
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Target className="h-8 w-8 mx-auto mb-2" />
+                    <p>No quiz recommendations available</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -261,53 +248,11 @@ export default function RecommendationsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  {
-                    title: "Full-Stack Web Development",
-                    progress: 65,
-                    modules: 12,
-                    completed: 8,
-                    difficulty: "Intermediate"
-                  },
-                  {
-                    title: "Machine Learning Basics",
-                    progress: 30,
-                    modules: 8,
-                    completed: 2,
-                    difficulty: "Advanced"
-                  },
-                  {
-                    title: "Database Design",
-                    progress: 90,
-                    modules: 6,
-                    completed: 5,
-                    difficulty: "Intermediate"
-                  }
-                ].map((path, index) => (
-                  <div key={index} className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium">{path.title}</h3>
-                      <Badge variant="outline" className="text-xs">{path.difficulty}</Badge>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex-1 bg-muted rounded-full h-2">
-                        <div 
-                          className="bg-primary h-2 rounded-full transition-all" 
-                          style={{ width: `${path.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-muted-foreground">{path.progress}%</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {path.completed}/{path.modules} modules completed
-                      </span>
-                      <Button size="sm" variant="outline">
-                        Continue
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                <div className="text-center py-8 text-muted-foreground">
+                  <BookOpen className="h-8 w-8 mx-auto mb-2" />
+                  <p>Learning paths coming soon</p>
+                  <p className="text-sm">We&apos;re working on personalized learning paths based on your performance</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -325,43 +270,31 @@ export default function RecommendationsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  {
-                    title: "JavaScript: The Definitive Guide",
-                    type: "Book",
-                    rating: 4.8,
-                    duration: "12 hours"
-                  },
-                  {
-                    title: "React Tutorial for Beginners",
-                    type: "Video Course",
-                    rating: 4.9,
-                    duration: "6 hours"
-                  },
-                  {
-                    title: "Data Structures in Python",
-                    type: "Interactive Course",
-                    rating: 4.7,
-                    duration: "8 hours"
-                  }
-                ].map((resource, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{resource.title}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">{resource.type}</Badge>
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                          <span className="text-xs">{resource.rating}</span>
+                {recommendations?.recommendations?.recommendedResources && recommendations.recommendations.recommendedResources.length > 0 ? (
+                  recommendations.recommendations.recommendedResources.map((resource, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                      <div className="flex-1">
+                        <h3 className="font-medium">{resource.title}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">{resource.type}</Badge>
+                          <Badge variant="secondary" className="text-xs">{resource.difficulty}</Badge>
                         </div>
-                        <span className="text-xs text-muted-foreground">• {resource.duration}</span>
+                        <p className="text-sm text-muted-foreground mt-2">{resource.description}</p>
                       </div>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={resource.url} target="_blank" rel="noopener noreferrer">
+                          View
+                        </a>
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline">
-                      View
-                    </Button>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Star className="h-8 w-8 mx-auto mb-2" />
+                    <p>No resources recommended yet</p>
+                    <p className="text-sm">Complete more quizzes to get personalized resource recommendations</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -379,18 +312,26 @@ export default function RecommendationsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <h3 className="font-medium text-green-800 dark:text-green-200">Strengths</h3>
-                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                    You excel in JavaScript and React concepts. Consider taking advanced courses in these areas.
-                  </p>
-                </div>
-                <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                  <h3 className="font-medium text-yellow-800 dark:text-yellow-200">Areas for Improvement</h3>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    Focus on data structures and algorithms to strengthen your problem-solving skills.
-                  </p>
-                </div>
+                {recommendations?.recommendations?.strongAreas && recommendations.recommendations.strongAreas.length > 0 && (
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
+                    <h3 className="font-medium text-green-800 dark:text-green-200">Strengths</h3>
+                    <ul className="text-sm text-green-700 dark:text-green-300 mt-1 list-disc list-inside">
+                      {recommendations.recommendations.strongAreas.map((area, index) => (
+                        <li key={index}>{area}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {recommendations?.recommendations?.weakAreas && recommendations.recommendations.weakAreas.length > 0 && (
+                  <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                    <h3 className="font-medium text-yellow-800 dark:text-yellow-200">Areas for Improvement</h3>
+                    <ul className="text-sm text-yellow-700 dark:text-yellow-300 mt-1 list-disc list-inside">
+                      {recommendations.recommendations.weakAreas.map((area, index) => (
+                        <li key={index}>{area}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
                   <h3 className="font-medium text-blue-800 dark:text-blue-200">Learning Style</h3>
                   <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">

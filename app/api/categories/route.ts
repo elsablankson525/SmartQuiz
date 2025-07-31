@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get("search")
-    const where: Prisma.CategoryWhereInput = {}
+    const where: Prisma.SubjectWhereInput = {}
     
     if (search && search.trim()) {
       where.OR = [
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       ]
     }
     
-    const categories = await prisma.category.findMany({ 
+    const categories = await prisma.subject.findMany({ 
       where,
       orderBy: { name: 'asc' }
     })

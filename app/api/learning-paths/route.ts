@@ -1,82 +1,74 @@
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '../../../lib/prisma';
 
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url)
-    const category = searchParams.get("category")
-    const difficulty = searchParams.get("difficulty")
-    const search = searchParams.get("search")
-    const userId = searchParams.get("userId")
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+    const difficulty = searchParams.get('difficulty');
 
-    // Build query
-    const where: Prisma.LearningPathWhereInput = {}
-    if (category && category !== "All") where.category = category
-    if (difficulty && difficulty !== "All") where.difficulty = difficulty
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { skills: { hasSome: [search] } },
-      ]
+    const where: Record<string, string> = {};
+    
+    if (category) {
+      where.category = category;
+    }
+    
+    if (difficulty) {
+      where.difficulty = difficulty;
     }
 
-    const paths = await prisma.learningPath.findMany({ where })
-
-    // Fetch milestones for each path
-    const pathIds = paths.map((p) => p.id)
-    const allMilestones = await prisma.milestone.findMany({ where: { learningPathId: { in: pathIds } } })
-    // Group milestones by pathId
-    const milestonesByPath: Record<string, Prisma.MilestoneGetPayload<Record<string, never>>[]> = {}
-    allMilestones.forEach(m => {
-      if (!milestonesByPath[m.learningPathId]) milestonesByPath[m.learningPathId] = []
-      milestonesByPath[m.learningPathId].push(m)
-    })
-
-    // If userId is provided, fetch user quiz results for progress tracking
-    let userQuizResults: Prisma.QuizResultGetPayload<Record<string, never>>[] = []
-    if (userId) {
-      // Find user by email first
-      const user = await prisma.user.findUnique({ where: { email: userId } })
-      if (user) {
-        userQuizResults = await prisma.quizResult.findMany({ where: { userId: user.id } })
+    const learningPaths = await prisma.learningPath.findMany({
+      where,
+      orderBy: {
+        title: 'asc'
       }
-    }
+    });
 
-    // Format response with milestones and progress
-    const result = paths.map(path => {
-      const milestones = (milestonesByPath[path.id] || []).map(milestone => {
-        // Calculate completion for this milestone
-        let isCompleted = false
-        let completedAt = null
-        if (userQuizResults.length && milestone.quizTopics.length) {
-          // Find all quiz results matching any topic in milestone.quizTopics
-          const relevantQuizzes = userQuizResults.filter(qr =>
-            milestone.quizTopics.some((topic: string) => qr.category.includes(topic))
-          )
-          if (relevantQuizzes.length) {
-            const avgScore = relevantQuizzes.reduce((sum, qr) => sum + (qr.score / qr.totalQuestions) * 100, 0) / relevantQuizzes.length
-            if (avgScore >= milestone.requiredScore) {
-              isCompleted = true
-              completedAt = relevantQuizzes[0].date
-            }
-          }
+    // Add default milestones to each learning path
+    const learningPathsWithMilestones = learningPaths.map(path => ({
+      ...path,
+      milestones: [
+        {
+          id: `${path.id}-milestone-1`,
+          title: 'Getting Started',
+          description: 'Introduction to the fundamentals',
+          isCompleted: false,
+          quizTopics: [path.category],
+          estimatedTime: '2-3 hours',
+          difficulty: 'beginner',
+          requiredScore: 70
+        },
+        {
+          id: `${path.id}-milestone-2`,
+          title: 'Core Concepts',
+          description: 'Master the essential concepts',
+          isCompleted: false,
+          quizTopics: [path.category],
+          estimatedTime: '4-6 hours',
+          difficulty: path.difficulty,
+          requiredScore: 80
+        },
+        {
+          id: `${path.id}-milestone-3`,
+          title: 'Advanced Topics',
+          description: 'Explore advanced features and techniques',
+          isCompleted: false,
+          quizTopics: [path.category],
+          estimatedTime: '6-8 hours',
+          difficulty: path.difficulty === 'beginner' ? 'intermediate' : 'advanced',
+          requiredScore: 85
         }
-        return { ...milestone, isCompleted, completedAt }
-      })
-      const completedCount = milestones.filter(m => m.isCompleted).length
-      const progress = milestones.length ? Math.round((completedCount / milestones.length) * 100) : 0
-      return {
-        ...path,
-        milestones,
-        progress,
-      }
-    })
+      ],
+      progress: 0
+    }));
 
-    return NextResponse.json({ learningPaths: result })
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch learning paths" }, { status: 500 })
+    return NextResponse.json(learningPathsWithMilestones);
+  } catch (error) {
+    console.error('Error fetching learning paths:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch learning paths' },
+      { status: 500 }
+    );
   }
 }
 

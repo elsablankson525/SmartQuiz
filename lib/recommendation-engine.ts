@@ -73,8 +73,12 @@ export class RecommendationEngine {
       const weakAreas = this.identifyWeakAreas(quizResult, questions)
       const strongAreas = this.identifyStrongAreas(quizResult, questions)
       
+      // Get category and difficulty from quizResult (with fallbacks)
+      const category = quizResult.category || 'General'
+      const difficulty = quizResult.difficulty || 'intermediate'
+      
       // Get learning resources
-      const resources = await this.getLearningResources(quizResult.category, weakAreas)
+      const resources = await this.getLearningResources(category, weakAreas)
       
       // Generate study plan
       const studyPlan = this.generateStudyPlan(quizResult, weakAreas, learnerType)
@@ -82,14 +86,14 @@ export class RecommendationEngine {
       // Get learning path recommendations
       const pathRecommendations = await this.getLearningPathRecommendations(
         userHistory,
-        quizResult.category,
-        quizResult.difficulty
+        category,
+        difficulty
       )
       
       // Get YouTube videos (with error handling)
       let youtubeVideos: YouTubeVideo[] = []
       try {
-        youtubeVideos = await this.getYouTubeVideos(quizResult.category, weakAreas)
+        youtubeVideos = await this.getYouTubeVideos(category, weakAreas)
       } catch (error) {
         console.warn("YouTube API failed, skipping video recommendations:", error)
       }
@@ -120,10 +124,10 @@ export class RecommendationEngine {
       // Generate collaborative insights (with fallback)
       let collaborativeInsights: CollaborativeInsights | undefined
       try {
-        collaborativeInsights = await this.generateCollaborativeInsights(userHistory, quizResult.category)
+        collaborativeInsights = await this.generateCollaborativeInsights(userHistory, category)
       } catch (error) {
         console.warn("Collaborative insights failed, using fallback:", error)
-        collaborativeInsights = this.getFallbackCollaborativeInsights(userHistory, quizResult.category)
+        collaborativeInsights = this.getFallbackCollaborativeInsights(userHistory, category)
         fallbackMode = true
       }
 
@@ -165,7 +169,8 @@ export class RecommendationEngine {
     userHistory: QuizResult[]
   ): PerformanceMetrics {
     const percentage = (quizResult.score / quizResult.totalQuestions) * 100
-    const avgTimePerQuestion = quizResult.timeSpent / quizResult.totalQuestions
+    const timeSpent = quizResult.timeSpent || 0
+    const avgTimePerQuestion = timeSpent > 0 ? timeSpent / quizResult.totalQuestions : 60 // Default 60 seconds
     const accuracy = quizResult.score / quizResult.totalQuestions
 
     // Determine level
@@ -177,7 +182,7 @@ export class RecommendationEngine {
     // Determine time efficiency
     let timeEfficiency: 'fast' | 'optimal' | 'slow'
     const avgTime = userHistory.length > 0 
-      ? userHistory.reduce((sum, result) => sum + result.timeSpent / result.totalQuestions, 0) / userHistory.length
+      ? userHistory.reduce((sum, result) => sum + (result.timeSpent || 0) / result.totalQuestions, 0) / userHistory.length
       : 60 // Default 60 seconds per question
     
     if (avgTimePerQuestion < avgTime * 0.8) timeEfficiency = 'fast'
@@ -188,7 +193,7 @@ export class RecommendationEngine {
       score: quizResult.score,
       percentage,
       level,
-      timeSpent: quizResult.timeSpent,
+      timeSpent,
       timeEfficiency,
       avgTimePerQuestion,
       accuracy
@@ -253,18 +258,16 @@ export class RecommendationEngine {
           ]
         },
         take: 10,
-        orderBy: { rating: 'desc' }
+        orderBy: { createdAt: 'desc' }
       })
 
       return resources.map(resource => ({
         id: resource.id,
         title: resource.title,
-        type: resource.type as LearningResource['type'],
+        type: resource.type,
         url: resource.url,
         difficulty: resource.difficulty,
-        relevanceScore: resource.rating || 0.5,
-        estimatedTime: 30, // Default 30 minutes
-        description: resource.description,
+        description: resource.description || '',
         tags: resource.tags,
         category: resource.category,
         topic: resource.topic,
@@ -274,7 +277,10 @@ export class RecommendationEngine {
         rating: resource.rating || undefined,
         language: resource.language || undefined,
         isFree: resource.isFree || undefined,
-        certification: resource.certification || undefined
+        certification: resource.certification || undefined,
+        // Additional fields for enhanced functionality
+        relevanceScore: resource.rating || 0.5,
+        estimatedTime: 30 // Default 30 minutes
       }))
     } catch (error) {
       console.error("Error fetching learning resources:", error)
@@ -323,7 +329,7 @@ export class RecommendationEngine {
           difficulty
         },
         take: 5,
-        orderBy: { rating: 'desc' }
+        orderBy: { createdAt: 'desc' }
       })
 
       return paths.map(path => ({
@@ -333,24 +339,17 @@ export class RecommendationEngine {
           description: path.description,
           category: path.category,
           difficulty: path.difficulty,
-          duration: path.duration || undefined,
-          modules: path.modules || undefined,
-          enrolled: path.enrolled || undefined,
-          rating: path.rating || undefined,
+          duration: path.estimatedDuration || undefined,
           progress: path.progress || undefined,
-          color: path.color || undefined,
-          icon: path.icon || undefined,
-          skills: path.skills,
-          instructor: path.instructor || undefined,
-          isPopular: path.isPopular || undefined,
           createdAt: path.createdAt,
           updatedAt: path.updatedAt,
+          skills: [], // Not available in current schema
           milestones: [] // Will be populated separately if needed
         },
         reason: `Recommended based on your ${category} performance`,
         matchScore: 0.85,
-        estimatedCompletionTime: path.duration || "4 weeks",
-        prerequisites: []
+        estimatedCompletionTime: path.estimatedDuration || "4 weeks",
+        prerequisites: path.prerequisites || []
       }))
     } catch (error) {
       console.error("Error fetching learning paths:", error)
@@ -501,8 +500,8 @@ export class RecommendationEngine {
         
         Performance Data:
         - Recent Score: ${quizResult.score}/${quizResult.totalQuestions}
-        - Time Spent: ${quizResult.timeSpent} seconds
-        - Average Time per Question: ${(quizResult.timeSpent / quizResult.totalQuestions).toFixed(1)} seconds
+        - Time Spent: ${quizResult.timeSpent || 0} seconds
+        - Average Time per Question: ${((quizResult.timeSpent || 0) / quizResult.totalQuestions).toFixed(1)} seconds
         - Historical Performance: ${userHistory.length} previous quizzes
         
         Performance Analytics:
@@ -592,7 +591,7 @@ export class RecommendationEngine {
     userHistory: QuizResult[],
     _performanceAnalytics: PerformanceMetrics
   ): AIAnalysis {
-    const avgTimePerQuestion = quizResult.timeSpent / quizResult.totalQuestions;
+    const avgTimePerQuestion = (quizResult.timeSpent || 0) / quizResult.totalQuestions;
     const score = quizResult.score / quizResult.totalQuestions;
     
     // Determine learning style based on patterns
@@ -805,7 +804,7 @@ export class RecommendationEngine {
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         return {
-          learningInsights: parsed.learningInsights || this.getFallbackLearningInsights(percentage, quizResult.category, weakAreas),
+          learningInsights: parsed.learningInsights || this.getFallbackLearningInsights(percentage, quizResult.category || 'Unknown', weakAreas),
           motivationalTips: parsed.motivationalTips || this.getFallbackMotivationalTips(percentage),
           studyStrategies: parsed.studyStrategies || this.getFallbackStudyStrategies(percentage),
           encouragement: parsed.encouragement || this.getFallbackEncouragement(percentage),
@@ -814,12 +813,12 @@ export class RecommendationEngine {
       }
       
       // Fallback to static responses if AI parsing fails
-      return this.getFallbackGeminiInsights(percentage, quizResult.category, weakAreas);
+      return this.getFallbackGeminiInsights(percentage, quizResult.category || 'Unknown', weakAreas);
       
     } catch (error) {
       console.error("Error generating AI insights:", error);
       // Fallback to static responses
-      return this.getFallbackGeminiInsights(percentage, quizResult.category, weakAreas);
+      return this.getFallbackGeminiInsights(percentage, quizResult.category || 'Unknown', weakAreas);
     }
   }
 
@@ -963,7 +962,7 @@ export class RecommendationEngine {
         emergingSkills: []
       },
       geminiInsights: {
-        learningInsights: this.getFallbackLearningInsights(percentage, quizResult.category, weakAreas),
+        learningInsights: this.getFallbackLearningInsights(percentage, quizResult.category || 'Unknown', weakAreas),
         motivationalTips: this.getFallbackMotivationalTips(percentage),
         studyStrategies: this.getFallbackStudyStrategies(percentage),
         encouragement: this.getFallbackEncouragement(percentage),
@@ -1089,12 +1088,16 @@ export class RecommendationEngine {
    */
   private async generateFallbackRecommendations(quizResult: QuizResult, _questions: Question[]): Promise<Recommendation> {
     try {
+      // Get category and difficulty with fallbacks
+      const category = quizResult.category || 'General'
+      const difficulty = quizResult.difficulty || 'intermediate'
+      
       // Use rule-based engine as fallback
       const ruleBasedRecommendations = await RuleBasedEngine.generateRecommendations(
         [], // Empty history for fallback
-        quizResult.category,
+        category,
         {
-          difficulty: quizResult.difficulty || 'intermediate',
+          difficulty: difficulty,
           timeAvailable: 10, // Default 10 hours
           goals: ['Improve understanding', 'Practice regularly']
         }
@@ -1112,9 +1115,9 @@ export class RecommendationEngine {
           percentage: (quizResult.score / quizResult.totalQuestions) * 100,
           level: (quizResult.score / quizResult.totalQuestions) >= 0.8 ? 'excellent' : 
                  (quizResult.score / quizResult.totalQuestions) >= 0.6 ? 'good' : 'needs_improvement',
-          timeSpent: quizResult.timeSpent,
+          timeSpent: quizResult.timeSpent || 0,
           timeEfficiency: 'optimal',
-          avgTimePerQuestion: quizResult.timeSpent / quizResult.totalQuestions,
+          avgTimePerQuestion: (quizResult.timeSpent || 0) / quizResult.totalQuestions,
           accuracy: quizResult.score / quizResult.totalQuestions
         },
         aiAnalysis: {
@@ -1222,7 +1225,7 @@ export class RecommendationEngine {
         collaborativeInsights: {
           similarLearners: [],
           communityTrends: {
-            trendingTopics: [quizResult.category],
+            trendingTopics: [quizResult.category || 'Unknown'],
             popularResources: ['Video tutorials', 'Practice quizzes'],
             emergingSkills: ['Problem solving', 'Critical thinking'],
             successPatterns: ['Regular practice', 'Active learning']
@@ -1260,9 +1263,9 @@ export class RecommendationEngine {
           score: quizResult.score,
           percentage: (quizResult.score / quizResult.totalQuestions) * 100,
           level: 'needs_improvement',
-          timeSpent: quizResult.timeSpent,
+          timeSpent: quizResult.timeSpent || 0,
           timeEfficiency: 'optimal',
-          avgTimePerQuestion: quizResult.timeSpent / quizResult.totalQuestions,
+          avgTimePerQuestion: (quizResult.timeSpent || 0) / quizResult.totalQuestions,
           accuracy: quizResult.score / quizResult.totalQuestions
         },
         metadata: {
@@ -1294,7 +1297,7 @@ export class RecommendationEngine {
       // Use rule-based engine for recommendations
       const ruleBasedRecommendations = await RuleBasedEngine.generateRecommendations(
         userHistory,
-        quizResult.category,
+        quizResult.category || 'Unknown',
         {
           difficulty: options.difficulty || quizResult.difficulty || 'intermediate',
           timeAvailable: options.timeAvailable || 10,
@@ -1314,9 +1317,9 @@ export class RecommendationEngine {
           percentage: (quizResult.score / quizResult.totalQuestions) * 100,
           level: (quizResult.score / quizResult.totalQuestions) >= 0.8 ? 'excellent' : 
                  (quizResult.score / quizResult.totalQuestions) >= 0.6 ? 'good' : 'needs_improvement',
-          timeSpent: quizResult.timeSpent,
+          timeSpent: quizResult.timeSpent || 0,
           timeEfficiency: 'optimal',
-          avgTimePerQuestion: quizResult.timeSpent / quizResult.totalQuestions,
+                      avgTimePerQuestion: (quizResult.timeSpent || 0) / quizResult.totalQuestions,
           accuracy: quizResult.score / quizResult.totalQuestions
         },
         aiAnalysis: {
@@ -1429,7 +1432,7 @@ export class RecommendationEngine {
         collaborativeInsights: {
           similarLearners: [],
           communityTrends: {
-            trendingTopics: [quizResult.category],
+            trendingTopics: [quizResult.category || 'Unknown'],
             popularResources: ['Video tutorials', 'Practice quizzes'],
             emergingSkills: ['Problem solving', 'Critical thinking'],
             successPatterns: ['Regular practice', 'Active learning']

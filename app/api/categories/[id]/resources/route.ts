@@ -10,7 +10,7 @@ export async function GET(
     const { id } = await context.params
     
     // Validate category exists
-    const category = await prisma.category.findUnique({
+    const category = await prisma.subject.findUnique({
       where: { id }
     })
     

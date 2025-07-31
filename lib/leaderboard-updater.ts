@@ -29,7 +29,7 @@ export class LeaderboardUpdater {
       // Calculate user stats
       const totalQuizzes = user.quizResults.length;
       const totalScore = user.totalScore;
-      const subjects = [...new Set(user.quizResults.map((q: { category: string }) => q.category))].filter(Boolean) as string[];
+      const subjects = [...new Set(user.quizResults.map((q) => q.category || 'Unknown'))].filter(Boolean) as string[];
       const streak = this.calculateStreak(user.quizResults);
 
       // Update or create leaderboard entries for all timeframes
@@ -85,8 +85,6 @@ export class LeaderboardUpdater {
       await prisma.leaderboardEntry.update({
         where: { id: existingEntry.id },
         data: {
-          name: data.name,
-          avatar: data.avatar,
           score: data.score,
           quizzes: data.quizzes,
           streak: data.streak,
@@ -99,8 +97,6 @@ export class LeaderboardUpdater {
       await prisma.leaderboardEntry.create({
         data: {
           userId: data.userId,
-          name: data.name,
-          avatar: data.avatar,
           score: data.score,
           quizzes: data.quizzes,
           streak: data.streak,

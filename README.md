@@ -84,29 +84,51 @@ yarn install
 
 ### 3. Environment Setup
 
-Create a `.env.local` file in the root directory with the following variables:
+Copy the example environment file and configure it with your own values:
+
+```bash
+cp .env.example .env.local
+```
+
+Then edit `.env.local` and replace the placeholder values with your actual credentials:
 
 ```env
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/quiz_app"
+DATABASE_URL="postgresql://username:password@localhost:5432/SmartQuiz"
 
 # Authentication
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key"
+NEXTAUTH_SECRET="your-nextauth-secret-here"
 
-# AI Services
-OPENAI_API_KEY="your-openai-api-key"
-GOOGLE_GENERATIVE_AI_API_KEY="your-google-ai-key"
+# JWT Secret (for custom authentication)
+JWT_SECRET="your-jwt-secret-here"
 
-# Email (for password reset, etc.)
-EMAIL_SERVER_HOST="smtp.gmail.com"
-EMAIL_SERVER_PORT=587
-EMAIL_SERVER_USER="your-email@gmail.com"
-EMAIL_SERVER_PASSWORD="your-app-password"
+# Google OAuth (Optional - for Google sign-in)
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
 
-# YouTube API (for video content)
+# GitHub OAuth (Optional - for GitHub sign-in)
+GITHUB_CLIENT_ID="your-github-client-id"
+GITHUB_CLIENT_SECRET="your-github-client-secret"
+
+# AI Services (Optional - for AI-powered features)
+GOOGLE_AI_API_KEY="your-google-ai-api-key"
+DEEPSEEK_API_KEY="your-deepseek-api-key"
+GROQ_API_KEY="your-groq-api-key"
+XAI_API_KEY="your-xai-api-key"
+
+# YouTube API (Optional - for video content)
 YOUTUBE_API_KEY="your-youtube-api-key"
+
+# Node Environment
+NODE_ENV="development"
 ```
+
+**Important Notes:**
+- **Database**: You need a PostgreSQL database running locally or use a cloud service
+- **Secrets**: Generate new secrets using `openssl rand -base64 32`
+- **OAuth**: Google and GitHub OAuth are optional but recommended for better UX
+- **AI Services**: These are optional - the app will work with rule-based fallbacks
 
 ### 4. Database Setup
 

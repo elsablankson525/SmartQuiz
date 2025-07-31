@@ -209,7 +209,7 @@ class FeatureExtractor {
     const features: Record<string, number> = {}
 
     // Time-based features
-    features.avgTimePerQuestion = quizResult.timeSpent / quizResult.totalQuestions
+    features.avgTimePerQuestion = (quizResult.timeSpent || 0) / quizResult.totalQuestions
     features.timeConsistency = this.calculateTimeConsistency(userHistory)
     features.speedAccuracy = this.calculateSpeedAccuracyTradeoff(quizResult, userHistory)
 
@@ -225,7 +225,7 @@ class FeatureExtractor {
     const features: Record<string, number> = {}
 
     features.currentScore = quizResult.score / quizResult.totalQuestions
-    features.currentTime = quizResult.timeSpent / quizResult.totalQuestions
+    features.currentTime = (quizResult.timeSpent || 0) / quizResult.totalQuestions
 
     if (userHistory.length > 0) {
       const recentScores = userHistory.slice(-5).map(r => r.score / r.totalQuestions)
@@ -259,18 +259,18 @@ class FeatureExtractor {
 
   private calculateTimeConsistency(userHistory: QuizResult[]): number {
     if (userHistory.length < 2) return 1
-    const times = userHistory.map(r => r.timeSpent / r.totalQuestions)
+    const times = userHistory.map(r => (r.timeSpent || 0) / r.totalQuestions)
     return 1 / (1 + stats.standardDeviation(times))
   }
 
   private calculateSpeedAccuracyTradeoff(quizResult: QuizResult, userHistory: QuizResult[]): number {
     const currentAccuracy = quizResult.score / quizResult.totalQuestions
-    const currentSpeed = quizResult.timeSpent / quizResult.totalQuestions
+    const currentSpeed = (quizResult.timeSpent || 0) / quizResult.totalQuestions
     
     if (userHistory.length === 0) return 0.5
     
     const avgAccuracy = stats.mean(userHistory.map(r => r.score / r.totalQuestions))
-    const avgSpeed = stats.mean(userHistory.map(r => r.timeSpent / r.totalQuestions))
+    const avgSpeed = stats.mean(userHistory.map(r => (r.timeSpent || 0) / r.totalQuestions))
     
     const accuracyRatio = currentAccuracy / avgAccuracy
     const speedRatio = avgSpeed / currentSpeed
@@ -285,7 +285,7 @@ class FeatureExtractor {
   }
 
   private calculateDifficultyHandling(quizResult: QuizResult, _questions: Question[]): number {
-    const difficultyLevel = this.mapDifficultyToNumber(quizResult.difficulty)
+    const difficultyLevel = this.mapDifficultyToNumber(quizResult.difficulty || 'medium')
     const performance = quizResult.score / quizResult.totalQuestions
     return performance / difficultyLevel
   }
@@ -320,7 +320,7 @@ class FeatureExtractor {
   }
 
   private calculateDifficultyMatch(quizResult: QuizResult, resource: LearningResource): number {
-    const quizDifficulty = this.mapDifficultyToNumber(quizResult.difficulty)
+    const quizDifficulty = this.mapDifficultyToNumber(quizResult.difficulty || 'medium')
     const resourceDifficulty = this.mapDifficultyToNumber(resource.difficulty)
     const diff = Math.abs(quizDifficulty - resourceDifficulty)
     return Math.max(0, 1 - diff / 4)

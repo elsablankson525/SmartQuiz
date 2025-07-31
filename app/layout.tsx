@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   generator: 'v0.dev'
 }
 
-// Initialize server on startup
-if (typeof window === 'undefined') {
+// Initialize server on startup - only during runtime, not build time
+if (typeof window === 'undefined' && process.env.NODE_ENV !== 'production') {
   initializeServer().catch(console.error);
 }
 
@@ -23,8 +23,25 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Validate session and clear any stale data
-  const session = await validateSession()
+  // Validate session and clear any stale data - only during runtime
+  let session = null;
+  let sessionError = null;
+  
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      session = await validateSession();
+    } catch (error: unknown) {
+      console.error("Session validation error:", error);
+      session = null;
+      
+      // Check if it's a JWT decryption error
+      if (error && typeof error === 'object' && 'message' in error && 
+          (typeof error.message === 'string' && error.message.includes('decryption operation failed') || 
+          'name' in error && error.name === 'JWEDecryptionFailed')) {
+        sessionError = 'JWT_DECRYPTION_FAILED';
+      }
+    }
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -32,7 +49,7 @@ export default async function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={inter.className}>
-        <ClientLayout session={session}>
+        <ClientLayout session={session} sessionError={sessionError}>
           {children}
         </ClientLayout>
       </body>

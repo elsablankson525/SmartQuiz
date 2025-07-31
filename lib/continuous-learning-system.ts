@@ -501,7 +501,7 @@ export class ContinuousLearningSystem {
 
     return {
       // Quiz performance features
-      averageTimePerQuestion: quizResult.timeSpent / quizResult.totalQuestions,
+      averageTimePerQuestion: (quizResult.timeSpent || 0) / quizResult.totalQuestions,
       accuracyRate: quizResult.score / quizResult.totalQuestions,
       questionsAnswered: quizResult.questionsAnswered?.length || 0,
       

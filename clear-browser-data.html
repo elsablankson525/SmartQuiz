@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Browser Data - SmartQuiz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .success {
+            color: #059669;
+            background: #d1fae5;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 SmartQuiz - Clear Browser Data</h1>
+        
+        <div class="info">
+            <strong>Why is this needed?</strong><br>
+            Your authentication session has expired due to a system update. 
+            This tool will clear all stored data so you can log in fresh.
+        </div>
+
+        <h3>Step 1: Clear Browser Data</h3>
+        <button onclick="clearAllData()">Clear All Session Data</button>
+        
+        <h3>Step 2: Manual Browser Clear (Recommended)</h3>
+        <p>For complete cleanup, also clear your browser data manually:</p>
+        <ul>
+            <li><strong>Chrome/Edge:</strong> Press Ctrl+Shift+Delete → Select "All time" → Check all boxes → Clear data</li>
+            <li><strong>Firefox:</strong> Press Ctrl+Shift+Delete → Select "Everything" → Clear Now</li>
+            <li><strong>Safari:</strong> Safari → Preferences → Privacy → Manage Website Data → Remove All</li>
+        </ul>
+
+        <h3>Step 3: Restart Your App</h3>
+        <p>After clearing data, restart your development server:</p>
+        <code>npm run dev</code>
+
+        <h3>Step 4: Log In Again</h3>
+        <p>Visit your app and log in with your credentials.</p>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        function clearAllData() {
+            const status = document.getElementById('status');
+            
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                console.log('✅ localStorage cleared');
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                console.log('✅ sessionStorage cleared');
+                
+                // Clear all cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                console.log('✅ Cookies cleared');
+                
+                // Clear NextAuth specific cookies
+                const nextAuthCookies = [
+                    'next-auth.session-token',
+                    'next-auth.csrf-token',
+                    'next-auth.callback-url',
+                    '__Secure-next-auth.session-token',
+                    '__Secure-next-auth.csrf-token',
+                    '__Secure-next-auth.callback-url'
+                ];
+
+                nextAuthCookies.forEach(cookieName => {
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.localhost;`;
+                });
+                console.log('✅ NextAuth cookies cleared');
+                
+                status.innerHTML = '<div class="success">✅ All browser data cleared successfully! You can now restart your app and log in again.</div>';
+                
+            } catch (error) {
+                console.error('Error clearing data:', error);
+                status.innerHTML = '<div style="color: red;">❌ Error clearing data. Please clear manually using browser settings.</div>';
+            }
+        }
+    </script>
+</body>
+</html> 

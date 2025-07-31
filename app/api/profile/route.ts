@@ -22,6 +22,11 @@ export async function GET(req: Request) {
     const quizResultsRaw = await prisma.quizResult.findMany({ where: { userId: user.id } })
     const quizResults = quizResultsRaw.map(q => ({
       ...q,
+      userId: q.userId || '',
+      quizId: q.quizId,
+      category: q.category || '',
+      difficulty: q.difficulty || '',
+      timeSpent: q.timeSpent || undefined,
       questionsAnswered: Array.isArray(q.questionsAnswered)
         ? q.questionsAnswered
         : (typeof q.questionsAnswered === 'string' ? JSON.parse(q.questionsAnswered) : [])

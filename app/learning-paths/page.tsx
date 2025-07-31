@@ -84,7 +84,7 @@ export default function LearningPathJourneyPage() {
         const res = await fetch(`/api/learning-paths?${params.toString()}`)
         if (!res.ok) throw new Error("Failed to fetch learning paths")
         const data = await res.json()
-        setPaths(data.learningPaths || [])
+        setPaths(data || [])
       } catch {
         setError("Could not load learning paths. Please try again later.")
       } finally {

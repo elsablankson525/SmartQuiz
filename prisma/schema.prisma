@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,39 +8,40 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String?
-  email         String?  @unique
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  hashedPassword String?
+  id                 String             @id @default(cuid())
+  name               String?
+  email              String             @unique
+  emailVerified      DateTime?
+  password           String?
+  image              String?
+  totalScore         Int                @default(0)
+  createdAt          DateTime           @default(now())
+  accounts           Account[]
   leaderboardEntries LeaderboardEntry[]
-  achievements  Achievement[]
-  studyPlans    StudyPlan[]
-  quizResults   QuizResult[]
-  createdAt     DateTime @default(now())
-  totalScore    Int      @default(0) // Added: stores the user's total score
+  Quiz               Quiz[]
+  quizResults        QuizResult[]
+  sessions           Session[]
+  userPreferences    UserPreferences?
+  studyPlans         StudyPlan[]
   userLessonProgress UserLessonProgress[]
-  userCertificates UserCertificate[]
-  userPreferences UserPreferences?
-  quizSetRecommendations QuizSetRecommendation[]
+  userCertificates   UserCertificate[]
+  achievements       Achievement[]
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -59,287 +54,259 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String
-  icon        String?
-  color       String?
-  iconColor   String?
-  questionCount Int?
-  subjects    Subject[]
-  quizzes     QuizQuestion[]
+model Subject {
+  id           String         @id @default(cuid())
+  name         String         @unique
+  description  String?
+  icon         String?
+  color        String?
+  createdAt    DateTime       @default(now())
+  LearningPath LearningPath[]
+  Quiz         Quiz[]
+  lessons      Lesson[]
+  resources    Resource[]
+  userLessonProgress UserLessonProgress[]
+  userCertificates   UserCertificate[]
 }
 
-model Subject {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  icon        String?
-  description String
-  color       String?
-  borderColor String?
-  topics      String[]
-  quizzes     Int?
-  learners    Int?
-  avgTime     String?
-  difficulty  String?
-  rating      Float?
-  category    Category? @relation(fields: [categoryId], references: [id])
-  categoryId  String?
-  lessons     Lesson[]
-  resources   Resource[]
-  userLessonProgress UserLessonProgress[]
-  userCertificates UserCertificate[]
+model Category {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  icon          String?
+  color         String?
+  iconColor     String?
+  questionCount Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 model LearningPath {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  category    String
-  difficulty  String
-  duration    String?
-  modules     Int?
-  enrolled    Int?
-  rating      Float?
-  progress    Int?
-  color       String?
-  icon        String?
-  skills      String[]
-  instructor  String?
-  isPopular   Boolean?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  milestones  Milestone[]
-}
-
-model Milestone {
-  id            String   @id @default(cuid())
-  title         String
-  description   String
-  requiredScore Int
-  quizTopics    String[]
-  resources     String[]
-  isCompleted   Boolean  @default(false)
-  completedAt   DateTime?
-  learningPath  LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
-  learningPathId String
+  id                String   @id @default(cuid())
+  title             String
+  description       String
+  category          String
+  difficulty        String
+  estimatedDuration String?
+  prerequisites     String[]
+  progress          Float    @default(0)
+  isActive          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  Subject           Subject  @relation(fields: [category], references: [name])
 }
 
 model LearningResource {
-  id          String   @id @default(cuid())
-  title       String
-  type        String
-  url         String
-  difficulty  String
-  category    String
-  topic       String
-  description String
-  readTime    String?
-  duration    String?
-  provider    String?
-  rating      Float?
-  tags        String[]
-  language    String?
-  isFree      Boolean?
-  certification Boolean?
-}
-
-model QuizQuestion {
   id            String   @id @default(cuid())
-  question      String
-  options       String[]
-  correctAnswer String
-  explanation   String?
+  title         String
+  type          String
+  url           String
   difficulty    String
-  topic         String?
-  relatedConcepts String[]
-  category      Category? @relation(fields: [categoryId], references: [id])
-  categoryId    String?
+  category      String
+  topic         String
+  description   String?
+  duration      String?
+  readTime      String?
+  provider      String?
+  rating        Float?
+  tags          String[]
+  language      String?
+  isFree        Boolean?
+  certification Boolean?
+  createdAt     DateTime @default(now())
 }
 
 model LeaderboardEntry {
   id        String   @id @default(cuid())
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?
-  name      String
-  avatar    String?
+  userId    String
   score     Int
   quizzes   Int
   streak    Int
   badge     String?
   subjects  String[]
   timeframe String
-  rank      Int
-}
-
-// The Achievement table should be seeded with all possible badges (one row per badge, no userId by default).
-model Achievement {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  icon        String?
-  earned      Boolean?
-  user        User?    @relation(fields: [userId], references: [id])
-  userId      String?
-}
-
-model StudyPlan {
-  id          String   @id @default(cuid())
-  user        User?    @relation(fields: [userId], references: [id])
-  userId      String?
-  category    String
-  week        Int
-  focus       String
-  resources   String[]
-  quizTopics  String[]
-  goals       String[]
+  rank      Int      @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model QuizResult {
-  id              String   @id @default(cuid())
-  user            User     @relation(fields: [userId], references: [id])
-  userId          String
-  category        String
-  difficulty      String
-  score           Int
-  totalQuestions  Int
-  timeSpent       Int
-  date            DateTime @default(now())
-  questionsAnswered Json?
+  id                String   @id @default(cuid())
+  quizId            String
+  userId            String?
+  score             Int
+  totalQuestions    Int
+  timeSpent         Int?
+  date              DateTime @default(now())
+  category          String?  // Added to match TypeScript interface
+  difficulty        String?  // Added to match TypeScript interface
+  questionsAnswered String?  // JSON string to store question details
+  Quiz              Quiz     @relation(fields: [quizId], references: [id])
+  user              User?    @relation(fields: [userId], references: [id])
 }
 
+model Question {
+  id              String   @id
+  question        String
+  options         String[]
+  correctAnswer   String
+  explanation     String?
+  category        String
+  difficulty      String
+  topic           String?
+  relatedConcepts String[]
+  quizId          String?
+  createdAt       DateTime @default(now())
+  Quiz            Quiz?    @relation(fields: [quizId], references: [id])
+}
+
+model Quiz {
+  id         String       @id
+  userId     String?
+  category   String
+  difficulty String
+  createdAt  DateTime     @default(now())
+  Question   Question[]
+  Subject    Subject      @relation(fields: [category], references: [name])
+  User       User?        @relation(fields: [userId], references: [id])
+  QuizResult QuizResult[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Missing models that were dropped but are still referenced in API routes
 model Lesson {
-  id          String   @id @default(cuid())
-  title       String
-  type        String // video, article, quiz, resource
-  content     String // URL for video/resource, markdown for article, etc.
-  duration    String?
-  order       Int
-  isFree      Boolean? @default(true)
-  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  subjectId   String
-  resources   Resource[]
-  userLessonProgress UserLessonProgress[]
+  id                String                @id @default(cuid())
+  title             String
+  type              String
+  content           String
+  duration          String?
+  order             Int
+  isFree            Boolean               @default(true)
+  subjectId         String
+  subject           Subject               @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  resources         Resource[]
+  userProgress      UserLessonProgress[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 }
 
 model Resource {
   id          String   @id @default(cuid())
   title       String
-  type        String // video, article, download, link
+  type        String
   url         String
   description String?
-  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId   String?
-  lesson      Lesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId    String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lesson      Lesson?  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model UserLessonProgress {
   id         String   @id @default(cuid())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
-  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId  String
-  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId   String
   completedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([userId, lessonId])
 }
 
 model UserCertificate {
-  id            String   @id @default(cuid())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String
-  subject       Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  subjectId     String
-  issuedAt      DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  subjectId      String
+  issuedAt       DateTime @default(now())
   certificateUrl String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, subjectId])
 }
 
 model UserPreferences {
-  id                    String   @id @default(cuid())
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId                String
-  
-  // Learning preferences
-  learningStyle         String   @default("mixed") // visual, reading, practice, mixed
-  preferredTimeOfDay    String?  // morning, afternoon, evening, night
-  studySessionDuration  Int      @default(30) // minutes
-  weeklyStudyHours      Int      @default(10) // hours per week
-  
-  // Quiz preferences
-  preferredDifficulty   String   @default("beginner") // beginner, intermediate, advanced, adaptive
-  preferredSubjects     String[] // Array of subject names
-  quizTimeLimit         Int?     // seconds per question (null = no limit)
-  showExplanations      Boolean  @default(true)
-  
-  // Recommendation preferences
-  enableSmartRecommendations Boolean @default(true)
-  enableStudyPlans           Boolean @default(true)
-  enableProgressTracking      Boolean @default(true)
-  enableAdaptiveLearning      Boolean @default(true)
-  
-  // Notification preferences
-  emailNotifications    Boolean @default(true)
-  pushNotifications     Boolean @default(true)
-  weeklyProgressReport  Boolean @default(true)
-  achievementAlerts     Boolean @default(true)
-  
-  // Performance goals
-  targetScore           Int?     // Target percentage score
-  targetSubjects        String[] // Subjects to focus on
-  learningGoals         String[] // Array of goal descriptions
-  
-  // Quiz set specific preferences
-  quizSetPreferences    Json?    // Store preferences for each quiz set
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@unique([userId])
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  learningStyle             String   @default("mixed")
+  preferredTimeOfDay        String?
+  studySessionDuration      Int      @default(30)
+  weeklyStudyHours          Int      @default(10)
+  preferredDifficulty       String   @default("beginner")
+  preferredSubjects         String[]
+  quizTimeLimit             Int?
+  showExplanations          Boolean  @default(true)
+  enableSmartRecommendations Boolean  @default(true)
+  enableStudyPlans          Boolean  @default(true)
+  enableProgressTracking    Boolean  @default(true)
+  enableAdaptiveLearning    Boolean  @default(true)
+  emailNotifications        Boolean  @default(true)
+  pushNotifications         Boolean  @default(true)
+  weeklyProgressReport      Boolean  @default(true)
+  achievementAlerts         Boolean  @default(true)
+  targetScore               Int?
+  targetSubjects            String[]
+  learningGoals             String[]
+  quizSetPreferences        Json?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model QuizSetRecommendation {
-  id                    String   @id @default(cuid())
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId                String
-  quizSetId             String   // e.g., "mathematics-beginner"
-  subject               String
-  difficulty            String
-  
-  // Performance tracking
-  lastScore             Int?
-  bestScore             Int?
-  averageScore          Float?
-  attemptsCount         Int      @default(0)
-  totalTimeSpent        Int      @default(0) // seconds
-  
-  // Recommendation data
-  currentLevel          String   @default("beginner") // beginner, intermediate, advanced, adaptive
-  recommendedNextLevel  String?
-  weakAreas             String[]
-  strongAreas           String[]
-  
-  // Study plan tracking
-  currentStudyPlan      Json?    // Current study plan data
-  studyPlanProgress     Int      @default(0) // percentage complete
-  lastStudySession      DateTime?
-  
-  // Resource usage
-  recommendedResources  String[] // Array of resource IDs
-  completedResources    String[] // Array of completed resource IDs
-  
-  // Adaptive learning data
-  learningPace          String   @default("moderate") // slow, moderate, fast
-  confidenceLevel       String   @default("moderate") // low, moderate, high
-  readinessForNextLevel Boolean  @default(false)
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+model StudyPlan {
+  id                String   @id @default(cuid())
+  userId            String
+  title             String
+  description       String
+  subject           String
+  category          String?
+  difficulty        String
+  duration          String
+  goals             String[]
+  milestones        Json?
+  progress          Float    @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  @@unique([userId, quizSetId])
+model Achievement {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  icon        String?
+  criteria    Json?
+  points      Int      @default(0)
+  userId      String?  // Added to track which user earned this achievement
+  earned      Boolean  @default(false) // Added to track if achievement is earned
+  earnedAt    DateTime? // Added to track when achievement was earned
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QuizQuestion {
+  id              String   @id @default(cuid())
+  question        String
+  options         String[]
+  correctAnswer   String
+  explanation     String?
+  category        String
+  difficulty      String
+  topic           String?
+  tags            String[]
+  relatedConcepts String[] // Added to match TypeScript interface
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

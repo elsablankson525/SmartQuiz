@@ -67,40 +67,50 @@ export async function POST(request: NextRequest) {
       isCorrect: boolean
       topic?: string
     }> = []
-    if (quizResult.questionsAnswered) {
+    if (quizResult.questionsAnswered && typeof quizResult.questionsAnswered === 'string') {
       try {
-        parsedQuestions = JSON.parse(quizResult.questionsAnswered as string)
+        parsedQuestions = JSON.parse(quizResult.questionsAnswered)
       } catch (error) {
         console.warn('Failed to parse questionsAnswered:', error)
       }
     }
 
     // Parse questionsAnswered for user history
-    const parsedUserHistory = userHistory.map(history => {
-      let parsedHistoryQuestions: Array<{
-        question: string
-        userAnswer: string
-        correctAnswer: string
-        isCorrect: boolean
-        topic?: string
-      }> = []
-      if (history.questionsAnswered) {
-        try {
-          parsedHistoryQuestions = JSON.parse(history.questionsAnswered as string)
-        } catch (error) {
-          console.warn('Failed to parse history questionsAnswered:', error)
+    const parsedUserHistory = userHistory.map(history => ({
+      ...history,
+      userId: history.userId || '',
+      quizId: history.quizId,
+      category: history.category || '',
+      difficulty: history.difficulty || '',
+      timeSpent: history.timeSpent || undefined,
+      questionsAnswered: (() => {
+        let parsedHistoryQuestions: Array<{
+          question: string
+          userAnswer: string
+          correctAnswer: string
+          isCorrect: boolean
+          topic?: string
+        }> = []
+        if (history.questionsAnswered && typeof history.questionsAnswered === 'string') {
+          try {
+            parsedHistoryQuestions = JSON.parse(history.questionsAnswered)
+          } catch (error) {
+            console.warn('Failed to parse history questionsAnswered:', error)
+          }
         }
-      }
-      return {
-        ...history,
-        questionsAnswered: parsedHistoryQuestions
-      }
-    })
+        return parsedHistoryQuestions
+      })()
+    }))
 
     // Generate ML predictions
     const predictions = await mlModelManager.predict(
       {
         ...quizResult,
+        userId: quizResult.userId || '',
+        quizId: quizResult.quizId,
+        category: quizResult.category || '',
+        difficulty: quizResult.difficulty || '',
+        timeSpent: quizResult.timeSpent || undefined,
         questionsAnswered: parsedQuestions
       },
       questions || [],

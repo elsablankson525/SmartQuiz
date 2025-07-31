@@ -1,33 +1,20 @@
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '../../../lib/prisma';
 
-export async function GET(req: Request) {
+export async function GET(_request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url)
-    const search = searchParams.get("search")
-    const where: Prisma.SubjectWhereInput = {}
-    
-    if (search && search.trim()) {
-      where.OR = [
-        { id: search.trim() },
-        { name: { contains: search.trim(), mode: "insensitive" } },
-        { description: { contains: search.trim(), mode: "insensitive" } },
-        { topics: { hasSome: [search.trim()] } },
-      ]
-    }
-    
-    const subjects = await prisma.subject.findMany({ 
-      where,
-      orderBy: { name: 'asc' }
-    })
-    
-    return NextResponse.json({ 
-      success: true,
-      subjects: subjects || []
-    })
+    const subjects = await prisma.subject.findMany({
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    return NextResponse.json(subjects);
   } catch (error) {
-    console.error("Subjects error:", error)
-    return NextResponse.json({ error: "Failed to fetch subjects" }, { status: 500 })
+    console.error('Error fetching subjects:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch subjects' },
+      { status: 500 }
+    );
   }
 } 

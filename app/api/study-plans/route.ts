@@ -46,16 +46,16 @@ export async function GET(request: Request) {
       return NextResponse.json(personalizedPlan)
     }
 
-    // Build the query - only use category since StudyPlan doesn't have difficulty field
+    // Build the query - use subject since StudyPlan has subject field
     const whereClause: Prisma.StudyPlanWhereInput = {
-      category: dbCategory
+      subject: dbCategory
     }
 
     // Fetch study plans
     const studyPlans = await prisma.studyPlan.findMany({
       where: whereClause,
       orderBy: [
-        { week: 'asc' }
+        { createdAt: 'asc' }
       ]
     })
 
@@ -177,7 +177,7 @@ function calculatePerformanceMetrics(quizHistory: Prisma.QuizResultGetPayload<Re
 
   // Calculate time efficiency
   const avgTimePerQuestion = quizHistory.reduce((sum, quiz) => 
-    sum + (quiz.timeSpent / quiz.totalQuestions), 0) / quizHistory.length
+    sum + ((quiz.timeSpent || 0) / quiz.totalQuestions), 0) / quizHistory.length
   const timeEfficiency = avgTimePerQuestion < 60 ? 'excellent' : 
                         avgTimePerQuestion < 120 ? 'good' : 'needs_improvement'
 
@@ -374,23 +374,28 @@ function createWeakAreaFocusWeeks(weakAreas: string[], _: string) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { category, week, focus, resources, quizTopics, goals } = body
+    const { userId, title, description, subject, difficulty, duration, goals } = body
 
-    if (!category || !week || !focus) {
+    if (!userId || !title || !description || !subject) {
       return NextResponse.json(
-        { error: "Category, week, and focus are required" },
+        { error: "userId, title, description, and subject are required" },
         { status: 400 }
       )
     }
 
     const studyPlan = await prisma.studyPlan.create({
       data: {
-        category,
-        week,
-        focus,
-        resources: resources || [],
-        quizTopics: quizTopics || [],
-        goals: goals || []
+        userId,
+        title,
+        description,
+        subject,
+        category: body.category || null,
+        difficulty: difficulty || 'beginner',
+        duration: duration || '8 weeks',
+        goals: goals || [],
+        milestones: body.milestones || null,
+        progress: 0,
+        isActive: true
       }
     })
 

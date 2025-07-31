@@ -18,6 +18,16 @@ export async function GET(req: Request) {
     const entries = await prisma.leaderboardEntry.findMany({
       where,
       orderBy: [{ rank: "asc" }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true
+          }
+        }
+      }
     })
 
     // Pagination

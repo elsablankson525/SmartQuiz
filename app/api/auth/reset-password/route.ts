@@ -12,6 +12,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No account found with that email." }, { status: 404 });
   }
   const hashedPassword = await bcrypt.hash(password, 10);
-  await prisma.user.update({ where: { email }, data: { hashedPassword } });
+  await prisma.user.update({ where: { email }, data: { password: hashedPassword } });
   return NextResponse.json({ message: "Password reset successfully." });
 } 

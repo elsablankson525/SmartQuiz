@@ -71,8 +71,7 @@ export default function MLDemoPage() {
     const demoResult: QuizResult = {
       id: 'demo-quiz-1',
       userId: 'demo-user',
-      category: 'Mathematics',
-      difficulty: 'medium',
+      quizId: 'demo-quiz-1',
       score: 7,
       totalQuestions: 10,
       timeSpent: 450, // 7.5 minutes

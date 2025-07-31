@@ -53,23 +53,24 @@ export function calculatePerformanceMetrics(quizHistory: QuizResult[]): Performa
   }
 
   const totalQuizzes = quizHistory.length
-  const totalTimeSpent = quizHistory.reduce((sum, quiz) => sum + quiz.timeSpent, 0)
+  const totalTimeSpent = quizHistory.reduce((sum, quiz) => sum + (quiz.timeSpent || 0), 0)
   const averageScore =
     quizHistory.reduce((sum, quiz) => sum + (quiz.score / quiz.totalQuestions) * 100, 0) / totalQuizzes
 
   // Category breakdown
   const categoryMap = new Map<string, QuizResult[]>()
   quizHistory.forEach((quiz) => {
-    if (!categoryMap.has(quiz.category)) {
-      categoryMap.set(quiz.category, [])
+    const category = quiz.category || 'Unknown'
+    if (!categoryMap.has(category)) {
+      categoryMap.set(category, [])
     }
-    categoryMap.get(quiz.category)!.push(quiz)
+    categoryMap.get(category)!.push(quiz)
   })
 
   const categoryBreakdown: CategoryPerformance[] = Array.from(categoryMap.entries()).map(([category, quizzes]) => {
     const categoryAverage =
       quizzes.reduce((sum, quiz) => sum + (quiz.score / quiz.totalQuestions) * 100, 0) / quizzes.length
-    const categoryTimeSpent = quizzes.reduce((sum, quiz) => sum + quiz.timeSpent, 0)
+    const categoryTimeSpent = quizzes.reduce((sum, quiz) => sum + (quiz.timeSpent || 0), 0)
     const lastQuizDate = new Date(Math.max(...quizzes.map((q) => q.date.getTime())))
 
     // Calculate trend (simple comparison of first half vs second half)
@@ -120,13 +121,15 @@ export function calculatePerformanceMetrics(quizHistory: QuizResult[]): Performa
     week,
     quizzesTaken: quizzes.length,
     averageScore: quizzes.reduce((sum, quiz) => sum + (quiz.score / quiz.totalQuestions) * 100, 0) / quizzes.length,
-    timeSpent: quizzes.reduce((sum, quiz) => sum + quiz.timeSpent, 0),
+    timeSpent: quizzes.reduce((sum, quiz) => sum + (quiz.timeSpent || 0), 0),
   }))
 
   // Difficulty progression
   const difficultyMap = new Map<string, QuizResult[]>()
   quizHistory.forEach((quiz) => {
-    const key = `${quiz.category}-${quiz.difficulty}`
+    const category = quiz.category || 'Unknown'
+    const difficulty = quiz.difficulty || 'Unknown'
+    const key = `${category}-${difficulty}`
     if (!difficultyMap.has(key)) {
       difficultyMap.set(key, [])
     }

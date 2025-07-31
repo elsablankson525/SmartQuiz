@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
-// Define proper types for quiz results
-interface QuizResult {
-  score: number
-  totalQuestions: number
-  timeSpent: number
-  date: Date
-  category: string
-  difficulty: string
-}
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -67,16 +57,16 @@ export async function GET(req: Request) {
       },
       orderBy: { date: 'desc' },
       take: 100 // Limit to last 100 results for performance
-    }) as QuizResult[]
+    })
 
     // Calculate analytics
     const totalQuizzes = quizResults.length
     const averageScore = totalQuizzes > 0 
-      ? Math.round(quizResults.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / totalQuizzes)
+      ? Math.round(quizResults.reduce((sum: number, q) => sum + (q.score / q.totalQuestions) * 100, 0) / totalQuizzes)
       : 0
     
     const totalTimeSpent = totalQuizzes > 0 
-      ? quizResults.reduce((sum: number, q: QuizResult) => sum + q.timeSpent, 0)
+      ? quizResults.reduce((sum: number, q) => sum + (q.timeSpent || 0), 0)
       : 0
     
     const timeSpentFormatted = totalTimeSpent > 0 
@@ -91,7 +81,7 @@ export async function GET(req: Request) {
       const currentDate = new Date(today)
       
       for (let i = 0; i < 30; i++) { // Check last 30 days
-        const hasActivity = quizResults.some((q: QuizResult) => {
+        const hasActivity = quizResults.some((q) => {
           const quizDate = new Date(q.date)
           quizDate.setHours(0, 0, 0, 0)
           return quizDate.getTime() === currentDate.getTime()
@@ -114,8 +104,8 @@ export async function GET(req: Request) {
       const firstHalf = quizResults.slice(midPoint)
       const secondHalf = quizResults.slice(0, midPoint)
       
-      const firstHalfAvg = firstHalf.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / firstHalf.length
-      const secondHalfAvg = secondHalf.reduce((sum: number, q: QuizResult) => sum + (q.score / q.totalQuestions) * 100, 0) / secondHalf.length
+      const firstHalfAvg = firstHalf.reduce((sum: number, q) => sum + (q.score / q.totalQuestions) * 100, 0) / firstHalf.length
+      const secondHalfAvg = secondHalf.reduce((sum: number, q) => sum + (q.score / q.totalQuestions) * 100, 0) / secondHalf.length
       
       improvement = Math.round(secondHalfAvg - firstHalfAvg)
     }
@@ -123,10 +113,11 @@ export async function GET(req: Request) {
     // Calculate strong and weak subjects
     const subjectScores: { [key: string]: number[] } = {}
     quizResults.forEach(q => {
-      if (!subjectScores[q.category]) {
-        subjectScores[q.category] = []
+      const category = q.category || 'Unknown'
+      if (!subjectScores[category]) {
+        subjectScores[category] = []
       }
-      subjectScores[q.category].push((q.score / q.totalQuestions) * 100)
+      subjectScores[category].push((q.score / q.totalQuestions) * 100)
     })
 
     const subjectAverages = Object.entries(subjectScores).map(([subject, scores]) => ({
@@ -140,9 +131,9 @@ export async function GET(req: Request) {
     // Recent activity
     const recentActivity = quizResults.slice(0, 5).map(q => ({
       date: q.date.toISOString().split("T")[0],
-      subject: q.category,
+      subject: q.category || 'Unknown',
       score: Math.round((q.score / q.totalQuestions) * 100),
-      time: `${Math.round(q.timeSpent / 60)}m`,
+      time: `${Math.round((q.timeSpent || 0) / 60)}m`,
     }))
 
     // Get user achievements (simplified - just fetch existing ones)
@@ -191,11 +182,12 @@ export async function GET(req: Request) {
 
     // Difficulty progression
     const difficultyData = quizResults.reduce((acc, q) => {
-      if (!acc[q.difficulty]) {
-        acc[q.difficulty] = { count: 0, totalScore: 0 }
+      const difficulty = q.difficulty || 'Unknown'
+      if (!acc[difficulty]) {
+        acc[difficulty] = { count: 0, totalScore: 0 }
       }
-      acc[q.difficulty].count++
-      acc[q.difficulty].totalScore += (q.score / q.totalQuestions) * 100
+      acc[difficulty].count++
+      acc[difficulty].totalScore += (q.score / q.totalQuestions) * 100
       return acc
     }, {} as { [key: string]: { count: number, totalScore: number } })
 

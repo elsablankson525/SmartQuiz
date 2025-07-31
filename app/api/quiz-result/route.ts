@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const result = await prisma.quizResult.create({
       data: {
         userId: user.id, // Use the actual user ID, not email
+        quizId: `quiz-${Date.now()}`, // Generate a quiz ID since it's required
         category,
         difficulty,
         score,
@@ -90,12 +91,13 @@ export async function POST(req: Request) {
     // Generate comprehensive recommendations
     const quizResult: QuizResult = {
       id: result.id,
-      userId: result.userId,
-      category: result.category,
-      difficulty: result.difficulty,
+      userId: result.userId || '',
+      quizId: result.quizId,
+      category: result.category || '',
+      difficulty: result.difficulty || '',
       score: result.score,
       totalQuestions: result.totalQuestions,
-      timeSpent: result.timeSpent,
+      timeSpent: result.timeSpent || undefined,
       date: result.date,
       questionsAnswered: questionsAnswered
     };
@@ -116,12 +118,13 @@ export async function POST(req: Request) {
       questions,
       userHistory.map(h => ({
         id: h.id,
-        userId: h.userId,
-        category: h.category,
-        difficulty: h.difficulty,
+        userId: h.userId || '',
+        quizId: h.quizId,
+        category: h.category || '',
+        difficulty: h.difficulty || '',
         score: h.score,
         totalQuestions: h.totalQuestions,
-        timeSpent: h.timeSpent,
+        timeSpent: h.timeSpent || undefined,
         date: h.date,
         questionsAnswered: h.questionsAnswered ? JSON.parse(h.questionsAnswered as string) : undefined
       })),
@@ -130,7 +133,7 @@ export async function POST(req: Request) {
         name: user.name || '',
         email: user.email || '',
         image: user.image || undefined,
-        score: user.totalScore,
+        score: 0, // Default score since totalScore doesn't exist in User model
         quizzesTaken: userHistory.length,
         createdAt: user.createdAt,
         learningPreferences: undefined
@@ -189,12 +192,11 @@ async function generatePersonalizedRecommendations(
     // Convert history to QuizResult format
     const formattedHistory: QuizResult[] = userHistory.map(result => ({
       id: result.id,
-      userId: result.userId,
-      category: result.category,
-      difficulty: result.difficulty,
+      userId: result.userId || '',
+      quizId: result.quizId,
       score: result.score,
       totalQuestions: result.totalQuestions,
-      timeSpent: result.timeSpent,
+      timeSpent: result.timeSpent || undefined,
       date: result.date,
       questionsAnswered: result.questionsAnswered ? JSON.parse(result.questionsAnswered as string) : undefined
     }))

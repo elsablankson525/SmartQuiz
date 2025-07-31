@@ -20,19 +20,10 @@ export async function GET(req: Request) {
 
     const where: Prisma.QuizQuestionWhereInput = {}
     
-    // Handle category filtering - category can be either ID or name
+    // Handle category filtering
     if (category && category.trim()) {
       console.log("Filtering by category:", category);
-      // Check if category is an ID (cuid format) or name
-      if (category.startsWith('cmd')) {
-        // It's likely a category ID
-        where.categoryId = category
-        console.log("Using categoryId filter:", category);
-      } else {
-        // It's likely a category name
-        where.category = { name: category }
-        console.log("Using category name filter:", category);
-      }
+      where.category = category.trim()
     }
     
     // Handle topic filtering
@@ -46,10 +37,7 @@ export async function GET(req: Request) {
     }
 
     let questions = await prisma.quizQuestion.findMany({ 
-      where,
-      include: {
-        category: true, // Include category relation for response
-      }
+      where
     })
     
     console.log("Found questions:", questions.length);
@@ -67,7 +55,7 @@ export async function GET(req: Request) {
     questions = questions.slice(0, count)
 
     // Format response
-    const result = questions.map((q: Prisma.QuizQuestionGetPayload<{ include: { category: true } }>) => ({
+    const result = questions.map((q) => ({
       id: q.id,
       question: q.question,
       options: q.options,
@@ -76,7 +64,7 @@ export async function GET(req: Request) {
       topic: q.topic,
       explanation: q.explanation,
       relatedConcepts: q.relatedConcepts,
-      category: q.category?.name, // Include category name in response
+      category: q.category, // Include category name in response
     }))
 
     return NextResponse.json({ 
