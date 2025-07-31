@@ -63,6 +63,7 @@ export class RecommendationEngine {
     learnerType: 'slow' | 'inBetween' | 'fast' = 'inBetween'
   ): Promise<Recommendation> {
     const startTime = Date.now()
+    let fallbackMode = false
 
     try {
       // Analyze performance
@@ -85,20 +86,46 @@ export class RecommendationEngine {
         quizResult.difficulty
       )
       
-      // Get YouTube videos
-      const youtubeVideos = await this.getYouTubeVideos(quizResult.category, weakAreas)
+      // Get YouTube videos (with error handling)
+      let youtubeVideos: YouTubeVideo[] = []
+      try {
+        youtubeVideos = await this.getYouTubeVideos(quizResult.category, weakAreas)
+      } catch (error) {
+        console.warn("YouTube API failed, skipping video recommendations:", error)
+      }
       
-      // Generate AI analysis (simplified)
-      const aiAnalysis = await this.generateAIAnalysis(quizResult, userHistory, performanceAnalytics)
+      // Generate AI analysis (with fallback)
+      let aiAnalysis: AIAnalysis | undefined
+      try {
+        aiAnalysis = await this.generateAIAnalysis(quizResult, userHistory, performanceAnalytics)
+      } catch (error) {
+        console.warn("AI analysis failed, using fallback:", error)
+        aiAnalysis = this.getFallbackAIAnalysis(quizResult, userHistory, performanceAnalytics)
+        fallbackMode = true
+      }
       
-      // Generate AI predictions
+      // Generate AI predictions (rule-based fallback)
       const aiPredictions = this.generateAIPredictions(quizResult, userHistory, performanceAnalytics)
       
-      // Generate AI recommendations
-      const aiRecommendations = await this.generateAIRecommendations(quizResult, weakAreas, resources)
+      // Generate AI recommendations (with fallback)
+      let aiRecommendations: AIRecommendations | undefined
+      try {
+        aiRecommendations = await this.generateAIRecommendations(quizResult, weakAreas, resources)
+      } catch (error) {
+        console.warn("AI recommendations failed, using fallback:", error)
+        aiRecommendations = this.getFallbackAIRecommendations(quizResult, weakAreas, resources)
+        fallbackMode = true
+      }
       
-      // Generate collaborative insights
-      const collaborativeInsights = await this.generateCollaborativeInsights(userHistory, quizResult.category)
+      // Generate collaborative insights (with fallback)
+      let collaborativeInsights: CollaborativeInsights | undefined
+      try {
+        collaborativeInsights = await this.generateCollaborativeInsights(userHistory, quizResult.category)
+      } catch (error) {
+        console.warn("Collaborative insights failed, using fallback:", error)
+        collaborativeInsights = this.getFallbackCollaborativeInsights(userHistory, quizResult.category)
+        fallbackMode = true
+      }
 
       const processingTime = Date.now() - startTime
 
@@ -118,7 +145,9 @@ export class RecommendationEngine {
           generatedAt: new Date().toISOString(),
           version: "1.0.0",
           confidence: this.calculateConfidence(performanceAnalytics, userHistory.length),
-          processingTime
+          processingTime,
+          fallbackMode,
+          recommendationType: fallbackMode ? 'rule-based' : 'ai-powered'
         }
       }
     } catch (error) {
@@ -882,6 +911,110 @@ export class RecommendationEngine {
   }
 
   /**
+   * Fallback method for AI recommendations when AI service is unavailable
+   */
+  private getFallbackAIRecommendations(
+    quizResult: QuizResult,
+    weakAreas: string[],
+    resources: LearningResource[]
+  ): AIRecommendations {
+    const percentage = (quizResult.score / quizResult.totalQuestions) * 100;
+    
+    return {
+      immediateActions: [
+        {
+          action: `Focus on ${weakAreas[0] || 'fundamental concepts'}`,
+          priority: 'high' as const,
+          impact: 0.8,
+          timeRequired: 30,
+          reasoning: `Based on your performance in ${quizResult.category}`
+        }
+      ],
+      personalizedResources: resources.slice(0, 3),
+      adaptiveLearningPath: {
+        currentPhase: percentage >= 80 ? 'advanced' : percentage >= 60 ? 'intermediate' : 'beginner',
+        nextPhase: percentage >= 80 ? 'expert' : percentage >= 60 ? 'advanced' : 'intermediate',
+        phases: [
+          {
+            name: 'Foundation',
+            duration: 7,
+            objectives: ['Understand basic concepts', 'Build confidence'],
+            resources: ['Video tutorials', 'Practice quizzes'],
+            assessment: 'Basic comprehension quiz'
+          }
+        ]
+      },
+      skillDevelopment: {
+        strengths: [
+          {
+            skill: 'Problem solving',
+            level: Math.min(5, Math.max(1, Math.floor(percentage / 20))),
+            evidence: ['Consistent performance'],
+            recommendations: ['Continue practicing']
+          }
+        ],
+        weaknesses: weakAreas.map(area => ({
+          skill: area,
+          level: Math.max(1, Math.floor(percentage / 20)),
+          impact: 0.7,
+          improvementPlan: ['Review fundamentals', 'Practice regularly'],
+          estimatedTime: 60
+        })),
+        emergingSkills: []
+      },
+      geminiInsights: {
+        learningInsights: this.getFallbackLearningInsights(percentage, quizResult.category, weakAreas),
+        motivationalTips: this.getFallbackMotivationalTips(percentage),
+        studyStrategies: this.getFallbackStudyStrategies(percentage),
+        encouragement: this.getFallbackEncouragement(percentage),
+        nextSteps: this.getFallbackNextSteps(percentage, weakAreas)
+      }
+    };
+  }
+
+  /**
+   * Fallback method for collaborative insights when AI service is unavailable
+   */
+  private getFallbackCollaborativeInsights(
+    userHistory: QuizResult[],
+    category: string
+  ): CollaborativeInsights {
+    // const recentResults = userHistory
+    //   .filter(result => result.category === category)
+    //   .slice(-5);
+    
+    // Calculate average score (unused but kept for potential future use)
+    // const avgScore = recentResults.length > 0 
+    //   ? recentResults.reduce((sum, result) => sum + (result.score / result.totalQuestions), 0) / recentResults.length
+    //   : 0;
+    
+    return {
+      similarLearners: [
+        {
+          similarityScore: 0.85,
+          sharedCharacteristics: ['Similar performance level', 'Same subject interest'],
+          successfulStrategies: ['Regular practice', 'Concept review'],
+          commonChallenges: ['Time management', 'Complex topics']
+        }
+      ],
+      communityTrends: {
+        trendingTopics: [category],
+        popularResources: ['Video tutorials', 'Practice quizzes'],
+        emergingSkills: ['Problem solving', 'Critical thinking'],
+        successPatterns: ['Consistent practice', 'Active learning']
+      },
+      peerRecommendations: [
+        {
+          source: 'similar_learner' as const,
+          recommendation: 'Focus on understanding concepts before memorizing',
+          confidence: 0.8,
+          reasoning: 'Based on successful learners in your category'
+        }
+      ]
+    };
+  }
+
+  /**
    * Generate collaborative insights
    */
   private async generateCollaborativeInsights(
@@ -890,12 +1023,15 @@ export class RecommendationEngine {
   ): Promise<CollaborativeInsights> {
     try {
       // Get similar learners (simplified)
+      const lastScore = userHistory.length > 0 ? userHistory[userHistory.length - 1]?.score : 5;
+      const validScore = typeof lastScore === 'number' && !isNaN(lastScore) ? lastScore : 5;
+      
       const similarLearners = await prisma.quizResult.findMany({
         where: {
           category,
           score: {
-            gte: Math.max(0, userHistory[userHistory.length - 1]?.score - 2),
-            lte: Math.min(10, userHistory[userHistory.length - 1]?.score + 2)
+            gte: Math.max(0, validScore - 2),
+            lte: Math.min(10, validScore + 2)
           }
         },
         take: 10,

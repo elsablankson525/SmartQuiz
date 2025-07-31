@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // AI Provider Types
-export type AIProvider = 'gemini' | 'deepseek' | 'groq' | 'xai'
+export type AIProvider = 'gemini' | 'deepseek' | 'groq' | 'xai' | 'fallback'
 
 export interface AIResponse {
   text: string
@@ -19,12 +19,25 @@ export interface AIServiceConfig {
   temperature?: number
 }
 
+export interface ProviderStatus {
+  available: boolean
+  lastError?: string
+  lastSuccess?: Date
+  consecutiveFailures: number
+  retryAfter?: Date
+}
+
 export class MultiAIService {
   private static instance: MultiAIService
   private providers: Map<AIProvider, AIServiceConfig> = new Map()
+  private providerStatus: Map<AIProvider, ProviderStatus> = new Map()
   private currentProvider: AIProvider = 'gemini'
   private fallbackOrder: AIProvider[] = ['gemini', 'deepseek', 'groq', 'xai']
   private geminiService: GoogleGenerativeAI | null = null
+  private maxRetries = 3
+  private retryDelay = 1000 // 1 second
+  private maxConsecutiveFailures = 5
+  private failureCooldown = 5 * 60 * 1000 // 5 minutes
 
   static getInstance(): MultiAIService {
     if (!MultiAIService.instance) {
@@ -51,6 +64,10 @@ export class MultiAIService {
         temperature: 0.7
       })
       this.geminiService = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
+      this.providerStatus.set('gemini', {
+        available: true,
+        consecutiveFailures: 0
+      })
     }
 
     // Initialize DeepSeek
@@ -61,6 +78,10 @@ export class MultiAIService {
         model: 'deepseek-chat',
         maxTokens: 4096,
         temperature: 0.7
+      })
+      this.providerStatus.set('deepseek', {
+        available: true,
+        consecutiveFailures: 0
       })
     }
 
@@ -73,6 +94,10 @@ export class MultiAIService {
         maxTokens: 4096,
         temperature: 0.7
       })
+      this.providerStatus.set('groq', {
+        available: true,
+        consecutiveFailures: 0
+      })
     }
 
     // Initialize XAI
@@ -83,6 +108,10 @@ export class MultiAIService {
         model: 'grok-beta',
         maxTokens: 4096,
         temperature: 0.7
+      })
+      this.providerStatus.set('xai', {
+        available: true,
+        consecutiveFailures: 0
       })
     }
 
@@ -95,7 +124,8 @@ export class MultiAIService {
    */
   private setOptimalProvider(): void {
     for (const provider of this.fallbackOrder) {
-      if (this.providers.has(provider)) {
+      const status = this.providerStatus.get(provider)
+      if (status && status.available && this.providers.has(provider)) {
         this.currentProvider = provider
         break
       }
@@ -128,7 +158,7 @@ export class MultiAIService {
   }
 
   /**
-   * Generate content using the current provider with automatic fallback
+   * Generate content with automatic fallback and retry logic
    */
   async generateContent(prompt: string, options?: {
     provider?: AIProvider
@@ -140,19 +170,45 @@ export class MultiAIService {
     const providersToTry = this.getFallbackOrder(targetProvider)
 
     for (const provider of providersToTry) {
-      try {
-        const response = await this.generateWithProvider(provider, prompt, options)
-        return {
-          ...response,
-          responseTime: Date.now() - startTime
-        }
-      } catch (error) {
-        console.warn(`Failed to generate content with ${provider}:`, error)
+      const status = this.providerStatus.get(provider)
+      
+      // Skip if provider is in cooldown
+      if (status?.retryAfter && new Date() < status.retryAfter) {
+        console.log(`Provider ${provider} is in cooldown, skipping...`)
         continue
+      }
+
+      // Try with retries
+      for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+        try {
+          const response = await this.generateWithProvider(provider, prompt, options)
+          
+          // Mark success
+          this.markProviderSuccess(provider)
+          
+          return {
+            ...response,
+            responseTime: Date.now() - startTime
+          }
+        } catch (error) {
+          console.warn(`Attempt ${attempt} failed for ${provider}:`, error)
+          
+          // Mark failure
+          this.markProviderFailure(provider, error)
+          
+          // If this is the last attempt for this provider, continue to next provider
+          if (attempt === this.maxRetries) {
+            break
+          }
+          
+          // Wait before retry
+          await this.delay(this.retryDelay * attempt)
+        }
       }
     }
 
-    throw new Error('All AI providers failed to generate content')
+    // If all providers failed, return a fallback response
+    return this.generateFallbackResponse(prompt, startTime)
   }
 
   /**
@@ -372,6 +428,38 @@ export class MultiAIService {
   }
 
   /**
+   * Mark provider as successful
+   */
+  private markProviderSuccess(provider: AIProvider): void {
+    const status = this.providerStatus.get(provider)
+    if (status) {
+      status.available = true
+      status.consecutiveFailures = 0
+      status.lastSuccess = new Date()
+      status.lastError = undefined
+      status.retryAfter = undefined
+    }
+  }
+
+  /**
+   * Mark provider as failed
+   */
+  private markProviderFailure(provider: AIProvider, error: unknown): void {
+    const status = this.providerStatus.get(provider)
+    if (status) {
+      status.consecutiveFailures++
+      status.lastError = error instanceof Error ? error.message : 'Unknown error'
+      
+      // If too many consecutive failures, put in cooldown
+      if (status.consecutiveFailures >= this.maxConsecutiveFailures) {
+        status.available = false
+        status.retryAfter = new Date(Date.now() + this.failureCooldown)
+        console.log(`Provider ${provider} put in cooldown for ${this.failureCooldown / 1000} seconds`)
+      }
+    }
+  }
+
+  /**
    * Get fallback order starting from the specified provider
    */
   private getFallbackOrder(startProvider: AIProvider): AIProvider[] {
@@ -387,6 +475,38 @@ export class MultiAIService {
 
     // Filter to only include available providers
     return ordered.filter(provider => this.providers.has(provider))
+  }
+
+  /**
+   * Generate fallback response when all providers fail
+   */
+  private generateFallbackResponse(prompt: string, startTime: number): AIResponse {
+    console.log('All AI providers failed, using fallback response')
+    
+    // Simple fallback based on prompt content
+    let fallbackText = "I'm sorry, but I'm currently unable to provide AI-generated content due to service issues. "
+    
+    if (prompt.toLowerCase().includes('recommendation')) {
+      fallbackText += "For recommendations, please try our rule-based system or check back later when AI services are available."
+    } else if (prompt.toLowerCase().includes('analysis')) {
+      fallbackText += "For analysis, please review your performance metrics and consider focusing on areas where you scored lower."
+    } else {
+      fallbackText += "Please try again later or use our alternative features."
+    }
+
+    return {
+      text: fallbackText,
+      provider: 'fallback',
+      model: 'fallback',
+      responseTime: Date.now() - startTime
+    }
+  }
+
+  /**
+   * Delay utility
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
   }
 
   /**

@@ -1,13 +1,23 @@
 import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
 
 export default withAuth(
   function middleware(req) {
-    // Simple middleware - just check if user is authenticated
-    return;
+    // Check if user is authenticated
+    if (!req.nextauth.token) {
+      // Redirect to login if not authenticated
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+    
+    // User is authenticated, allow access
+    return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token }) => {
+        // Only allow access if token exists (user is authenticated)
+        return !!token;
+      },
     },
   }
 );

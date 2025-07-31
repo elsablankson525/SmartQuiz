@@ -29,7 +29,8 @@ import {
   Cpu,
   Sparkles,
   Eye,
-  Heart
+  Heart,
+  BookOpen
 } from 'lucide-react';
 
 interface AdvancedAIRecommendation {
@@ -194,6 +195,11 @@ export function AdvancedAIRecommendationPanel({
       // The API returns { recommendations: Recommendation }, so we need to extract it
       const recommendationData = data.recommendations || data;
       
+      // Debug logging
+      console.log('Recommendation data:', recommendationData);
+      console.log('Resources:', recommendationData.resources);
+      console.log('YouTube videos:', recommendationData.youtubeVideos);
+      
       // Transform the data to match the expected interface
       const transformedData: AdvancedAIRecommendation = {
         aiAnalysis: {
@@ -237,7 +243,46 @@ export function AdvancedAIRecommendationPanel({
         },
         recommendations: {
           immediateActions: recommendationData.aiRecommendations?.immediateActions || [],
-          personalizedResources: recommendationData.aiRecommendations?.personalizedResources || [],
+          personalizedResources: [
+            ...(recommendationData.resources || []).map((resource: Record<string, unknown>) => ({
+              title: String(resource.title || ''),
+              type: String(resource.type || ''),
+              url: String(resource.url || ''),
+              difficulty: String(resource.difficulty || ''),
+              relevanceScore: Number(resource.relevanceScore) || 0.8,
+              estimatedTime: Number(resource.estimatedTime) || 30,
+              aiReasoning: `Recommended based on your performance in ${quizResult.category} and identified weak areas. This ${String(resource.type || '')} resource will help you improve your understanding of ${String(resource.topic || 'key concepts')}.`,
+              learningOutcomes: [
+                `Master ${String(resource.topic || 'fundamental concepts')}`,
+                `Apply knowledge to solve problems`,
+                `Build confidence in ${quizResult.category}`
+              ],
+              personalizedTips: `Focus on understanding the core concepts before moving to advanced topics. Take notes and practice regularly.`,
+              thumbnail: String(resource.type || '') === 'video' ? undefined : undefined,
+              channelTitle: String(resource.provider || ''),
+              viewCount: undefined,
+              duration: String(resource.duration || resource.readTime || '')
+            })),
+            ...(recommendationData.youtubeVideos || []).map((video: Record<string, unknown>) => ({
+              title: String(video.title || ''),
+              type: 'video' as const,
+              url: String(video.url || ''),
+              difficulty: String(video.difficulty || ''),
+              relevanceScore: Number(video.relevanceScore) || 0.8,
+              estimatedTime: parseInt(String(video.duration || '0')) || 30,
+              aiReasoning: String(video.aiReasoning || `This video tutorial will help you understand ${String(video.title || '')} and improve your ${quizResult.category} skills.`),
+              learningOutcomes: [
+                `Learn from visual explanations`,
+                `Understand practical applications`,
+                `Reinforce key concepts`
+              ],
+              personalizedTips: `Watch actively, take notes, and pause to practice concepts.`,
+              thumbnail: String(video.thumbnail || ''),
+              channelTitle: String(video.channelTitle || ''),
+              viewCount: Number(video.viewCount) || undefined,
+              duration: String(video.duration || '')
+            }))
+          ],
           geminiInsights: recommendationData.aiRecommendations?.geminiInsights
         },
         collaborativeInsights: {
@@ -646,8 +691,9 @@ export function AdvancedAIRecommendationPanel({
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-                             <div className="space-y-4">
-                 {(recommendations.recommendations?.personalizedResources || []).map((resource, index) => (
+              <div className="space-y-4">
+                {recommendations.recommendations?.personalizedResources && recommendations.recommendations.personalizedResources.length > 0 ? (
+                  recommendations.recommendations.personalizedResources.map((resource, index) => (
                   <div key={index} className="border-2 border-indigo-100 dark:border-indigo-800 rounded-lg p-4 hover:border-indigo-200 dark:hover:border-indigo-700 transition-all duration-200 group">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-4">
@@ -771,7 +817,18 @@ export function AdvancedAIRecommendationPanel({
                       </Button>
                     </div>
                   </div>
-                ))}
+                ))
+                ) : (
+                  <div className="text-center py-8">
+                    <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      No Resources Available
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      We&apos;re working on finding the best learning resources for you. Please try again later.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

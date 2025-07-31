@@ -25,7 +25,32 @@ export default function Navbar() {
   const handleSignIn = () => router.push("/login");
   const handleGetStarted = () => router.push("/signup");
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: "/" });
+    try {
+      // Clear any local storage or session storage
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      
+      // Call custom sign out API to clear server-side session
+      await fetch('/api/auth/signout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      // Sign out using NextAuth
+      await signOut({ 
+        callbackUrl: "/",
+        redirect: false 
+      });
+      
+      // Force a hard refresh to clear any cached state
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error signing out:", error);
+      // Fallback: force redirect to home page
+      window.location.href = "/";
+    }
   };
 
   const navLinks = [

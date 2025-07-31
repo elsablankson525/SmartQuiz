@@ -14,7 +14,8 @@ export function CustomSessionProvider({
     <SessionProvider 
       session={session} 
       refetchInterval={5 * 60} // Refetch every 5 minutes
-      refetchOnWindowFocus={false}
+      refetchOnWindowFocus={false} // Don't refetch on window focus to prevent unwanted logins
+      refetchWhenOffline={false}
     >
       {children}
     </SessionProvider>

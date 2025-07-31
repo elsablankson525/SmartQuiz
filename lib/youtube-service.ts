@@ -57,6 +57,12 @@ export class YouTubeService {
       const searchUrl = `${this.baseUrl}/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=${params.maxResults || 10}&key=${this.apiKey}&videoDuration=${this.getDurationParam(params.duration)}&relevanceLanguage=${params.language || 'en'}&order=relevance`
 
       const searchResponse = await fetch(searchUrl)
+      
+      if (!searchResponse.ok) {
+        console.error(`YouTube API error: ${searchResponse.status} ${searchResponse.statusText}`)
+        return []
+      }
+      
       const searchData = await searchResponse.json()
 
       if (!searchData.items || searchData.error) {
@@ -74,6 +80,12 @@ export class YouTubeService {
       const detailsUrl = `${this.baseUrl}/videos?part=contentDetails,statistics,snippet&id=${videoIds}&key=${this.apiKey}`
 
       const detailsResponse = await fetch(detailsUrl)
+      
+      if (!detailsResponse.ok) {
+        console.error(`YouTube API details error: ${detailsResponse.status} ${detailsResponse.statusText}`)
+        return []
+      }
+      
       const detailsData = await detailsResponse.json()
 
       if (!detailsData.items) {

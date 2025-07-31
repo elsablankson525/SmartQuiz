@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 export default function HomePage() {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
 
   const features = [
     {
@@ -70,7 +70,11 @@ export default function HomePage() {
               and comprehensive analytics designed to accelerate your knowledge acquisition.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {status === "authenticated" ? (
+              {status === "loading" ? (
+                <Button size="lg" className="text-lg px-8" disabled>
+                  Loading...
+                </Button>
+              ) : status === "authenticated" && session?.user ? (
                 <Link href="/dashboard">
                   <Button size="lg" className="text-lg px-8">
                     Go to Dashboard
@@ -81,7 +85,7 @@ export default function HomePage() {
                 <>
                   <Link href="/signup">
                     <Button size="lg" className="text-lg px-8">
-                      Get Started Free
+                      Start Learning
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
                   </Link>

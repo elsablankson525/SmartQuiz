@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { continuousLearningSystem } from '@/lib/continuous-learning-system'
+import '@/lib/init-server' // Initialize continuous learning system
 
 export async function GET(_request: NextRequest) {
   try {

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
           break
       }
 
-      const result = await mlModelManager.retrainModel(modelType, trainingData)
+      const result = await mlModelManager.retrainModel(modelType, trainingData as TrainingData[keyof TrainingData])
       results.push({ model: modelType, ...result })
     }
 

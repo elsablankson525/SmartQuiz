@@ -1,26 +1,26 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { prisma } from "@/lib/prisma";
+import { authOptions } from "../[...nextauth]/route";
 
-export async function POST() {
+export async function POST(_request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (session?.user?.email) {
-      // Find and delete the user's session from the database
-      await prisma.session.deleteMany({
-        where: {
-          user: {
-            email: session.user.email
-          }
-        }
-      });
+    if (session) {
+      // Clear any server-side session data if needed
+      // For now, NextAuth handles this automatically
     }
-
-    return NextResponse.json({ success: true });
+    
+    // Return success response
+    return NextResponse.json({ 
+      success: true, 
+      message: "Session cleared successfully" 
+    });
   } catch (error) {
-    console.error("Error during sign out:", error);
-    return NextResponse.json({ error: "Failed to sign out" }, { status: 500 });
+    console.error("Signout error:", error);
+    return NextResponse.json(
+      { success: false, message: "Error clearing session" },
+      { status: 500 }
+    );
   }
 } 

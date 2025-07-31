@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { continuousLearningSystem } from '@/lib/continuous-learning-system'
-
+import '@/lib/init-server' // Initialize continuous learning system
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,6 +68,13 @@ export async function POST(request: NextRequest) {
           status: continuousLearningSystem.getStatus()
         })
 
+      case 'get-status':
+        // Get current system status
+        return NextResponse.json({
+          success: true,
+          status: continuousLearningSystem.getStatus()
+        })
+
       default:
         return NextResponse.json(
           { error: 'Invalid action' },
@@ -78,11 +85,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Continuous learning API error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Failed to process continuous learning request'
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

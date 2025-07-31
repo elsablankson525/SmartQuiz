@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "smart-quiz",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,8 @@
     "dev": "prisma generate && next dev",
     "lint": "next lint",
     "start": "next start",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "test:auth": "node test-auth-state.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

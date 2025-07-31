@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+
 import { 
   BarChart3, 
   BookOpen, 
@@ -770,6 +771,8 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+
         </div>
       </div>
     </div>

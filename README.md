@@ -43,8 +43,9 @@ A modern, intelligent quiz application built with Next.js that provides personal
 - **NextAuth.js** - Authentication solution
 
 ### AI & ML
-- **OpenAI API** - AI-powered recommendations
-- **Google Generative AI** - Content generation
+- **Multi-AI Service** - Fallback system with multiple AI providers (Gemini, DeepSeek, Groq, XAI)
+- **Google Generative AI** - Primary AI content generation
+- **Intelligent Fallbacks** - Rule-based recommendations when AI services are unavailable
 - **ML Matrix** - Machine learning computations
 - **Regression** - Statistical analysis
 
@@ -70,7 +71,7 @@ Before running this project, make sure you have:
 
 ```bash
 git clone <repository-url>
-cd bytebattle-quiz-app
+cd smart-quiz
 ```
 
 ### 2. Install Dependencies
@@ -133,7 +134,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 ## 📁 Project Structure
 
 ```
-bytebattle-quiz-app/
+smart-quiz/
 ├── app/                    # Next.js App Router pages
 │   ├── api/               # API routes
 │   ├── analytics/         # Analytics dashboard
@@ -162,6 +163,7 @@ bytebattle-quiz-app/
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run seed` - Seed database with initial data
+- `npm run test:auth` - Test authentication state and flow
 
 ## 🎯 Key Features Explained
 
@@ -184,6 +186,60 @@ The platform uses machine learning models to analyze user performance and provid
 - Progress visualization
 - Achievement tracking
 - Leaderboard rankings
+
+## 🔐 Authentication System
+
+### Authentication Flow
+The application implements a secure authentication system that ensures users start in a logged-out state:
+
+1. **Initial State**: Users always start the application in a logged-out state
+2. **Public Access**: Homepage and public pages are accessible without authentication
+3. **Protected Routes**: Dashboard, profile, analytics, and other features require authentication
+4. **Session Management**: Automatic session validation and cleanup of expired sessions
+5. **Secure Sign Out**: Complete session cleanup when users sign out
+
+### Authentication Features
+- **Multiple Providers**: Google OAuth, GitHub OAuth, and email/password authentication
+- **Session Validation**: Automatic validation of session tokens on each request
+- **Middleware Protection**: Route-level authentication using NextAuth middleware
+- **Session Cleanup**: Automatic cleanup of expired sessions on server startup
+- **Secure Cookies**: JWT-based sessions with secure cookie handling
+
+### Testing Authentication
+Run the authentication test to verify the system is working correctly:
+```bash
+npm run test:auth
+```
+
+## 🔧 Troubleshooting
+
+### Authentication Issues
+- **Users appear logged in when they shouldn't be**: Clear browser cookies and local storage, then restart the server
+- **Session persistence issues**: Check that NEXTAUTH_SECRET is properly set and unique
+- **Middleware not working**: Ensure the middleware.ts file is in the root directory and properly configured
+
+### AI Service Issues
+
+If you encounter AI service errors (503 Service Unavailable, 402 Payment Required, etc.):
+
+1. **Check AI Status Dashboard**: Visit the dashboard to see real-time AI provider status
+2. **Automatic Fallbacks**: The system automatically switches to rule-based recommendations when AI services are unavailable
+3. **Provider Rotation**: The system tries multiple AI providers in order of preference
+4. **Retry Logic**: Failed requests are automatically retried with exponential backoff
+
+### Common Issues
+
+**YouTube API Errors**: Video recommendations may be unavailable if the YouTube API key is invalid or quota is exceeded. The system will continue to work without video recommendations.
+
+**Database Connection Issues**: Ensure PostgreSQL is running and the DATABASE_URL is correctly configured.
+
+**Authentication Issues**: Check that NEXTAUTH_SECRET and NEXTAUTH_URL are properly set in your environment variables.
+
+### Performance Optimization
+
+- The system includes intelligent caching and fallback mechanisms
+- AI requests are optimized with retry logic and provider rotation
+- Rule-based recommendations ensure the app remains functional even when AI services are down
 
 ## 🤝 Contributing
 

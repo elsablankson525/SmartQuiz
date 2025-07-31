@@ -1,23 +1,21 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { getServerSession } from "next-auth"
-import { authOptions } from "./api/auth/[...nextauth]/route"
+import { validateSession } from "@/lib/session-cleanup"
+import { initializeServer } from "@/lib/init-server"
 import ClientLayout from "@/components/client-layout"
-import { continuousLearningSystem } from "@/lib/continuous-learning-system"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ByteBattle Quiz App",
+  title: "Smart Quiz",
   description: "AI-powered quiz application with continuous learning",
   generator: 'v0.dev'
 }
 
-// Initialize continuous learning system
+// Initialize server on startup
 if (typeof window === 'undefined') {
-  // Only run on server side
-  continuousLearningSystem.initialize().catch(console.error)
+  initializeServer().catch(console.error);
 }
 
 export default async function RootLayout({
@@ -25,10 +23,11 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSession(authOptions)
+  // Validate session and clear any stale data
+  const session = await validateSession()
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
